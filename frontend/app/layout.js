@@ -9,6 +9,7 @@ const prompt = Prompt({
 export const metadata = {
   title: "Guru IT Service Desk",
   description: "แจ้งปัญหาไอที ติดตามงาน และเซ็นรับงาน — Guru IT Solution",
+  icons: { icon: "/icon-192.png", apple: "/icon-180.png" },
 };
 
 export default function RootLayout({ children }) {
