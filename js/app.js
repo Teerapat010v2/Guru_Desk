@@ -98,7 +98,7 @@ let gpsTimer = null;
 let rpt = { partner: 'all', period: '30', view: 'summary' };
 let pfilter = 'all', pquery = '';
 let draft = { desc: '', urgent: false, site: '' };   // ร่างแจ้งปัญหาของลูกค้า — ไม่หายเมื่อปิดฟอร์มโดยไม่ตั้งใจ
-const pending = { create: [], cmt: [], report: [] };  // รูปที่เลือกไว้แต่ยังไม่ส่ง
+const pending = { create: [], cmt: [], report: [], wl: [] };  // รูปที่เลือกไว้แต่ยังไม่ส่ง
 let folds = store.get('gitsd-folds', {});            // ส่วนที่ผู้ใช้ย่อ/ขยายไว้
 let dense = store.get('gitsd-dense', false);         // มุมมองรายการแบบย่อ
 
@@ -991,7 +991,7 @@ function pushSheet(v) {
   syncHistory();
 }
 function openTicket(id) {
-  if (sheetStack.at(-1)?.id !== id) { cmtVis = 'public'; cmtDraft = ''; clearPending('cmt'); }
+  if (sheetStack.at(-1)?.id !== id) { cmtVis = 'public'; cmtDraft = ''; clearPending('cmt'); clearPending('wl'); }
   pushSheet({ t: 'ticket', id });
 }
 function openPartner(id) { pushSheet({ t: 'partner', id }); }
@@ -1091,8 +1091,9 @@ function ticketSheet(id) {
     <dl class="facts" style="margin-top:12px"><dt>แจ้งเมื่อ</dt><dd>${fmt(tk.history[0].at)} โดย ${esc(nameOf(tk.history[0].by))}</dd><dt>ประเภท</dt><dd>${cat.label}</dd><dt>ความสำคัญ</dt><dd>${PRIORITY_LABEL[tk.priority]}</dd></dl>
     ${gallery(tk.photos)}</div>`, { open: false });
   const worklog = canSeeWorklog(u) ? fold('d-wl', `Work log <small class="int">${ic('lock', 11, 2.2)}ภายใน</small>`, `<div class="card">
-    ${tk.worklogs.map(w => `<div class="cmt"><div class="meta">${esc(nameOf(w.by))} · ${fmt(w.at)}</div>${esc(w.text)}</div>`).join('') || '<div class="hint">ยังไม่มีบันทึกการทำงาน</div>'}
-    ${canAddWorklog(u, tk) ? `<div class="cbox" style="margin-top:10px"><textarea id="newWl" rows="2" placeholder="ทำอะไรไป ใช้เวลาเท่าไร…" aria-label="บันทึกการทำงาน"></textarea><button class="btn primary send" onclick="addWorklog('${tk.id}')" aria-label="บันทึก">${ic('plus', 18, 2.4)}</button></div>` : ''}</div>`, { open: false, count: tk.worklogs.length }) : '';
+    ${tk.worklogs.map(w => `<div class="cmt"><div class="meta">${esc(nameOf(w.by))} · ${fmt(w.at)}</div>${esc(w.text)}${gallery(w.photos)}</div>`).join('') || '<div class="hint">ยังไม่มีบันทึกการทำงาน</div>'}
+    ${canAddWorklog(u, tk) ? `<div class="cbox" style="margin-top:10px"><textarea id="newWl" rows="2" placeholder="ทำอะไรไป ใช้เวลาเท่าไร… (แนบรูปหลักฐานได้)" aria-label="บันทึกการทำงาน"></textarea><button class="btn primary send" onclick="addWorklog('${tk.id}')" aria-label="บันทึก">${ic('plus', 18, 2.4)}</button></div>
+    <div class="tools">${photoBtn('wl', 'แนบรูปหลักฐาน')}</div>${thumbsBox('wl')}` : ''}</div>`, { open: false, count: tk.worklogs.length }) : '';
   const mission = m && canSeeMissions(u) ? `<button class="mcard" onclick="closeSheet();goTab('mission')"><i>${ic('pin', 22)}</i><div><b>ภารกิจภาคสนาม ${m.id}</b><small>${MISSION_LABEL[m.status]} — แตะเพื่อดูแผนที่</small></div>${ic('right', 18, 2)}</button>` : '';
   return [tk.id, summary + reportCard(tk) + ratingCard(tk) + mission + convo + where + worklog + history];
 }
@@ -1408,10 +1409,11 @@ function addComment(id) {
   toast(vis === 'internal' ? 'บันทึกภายในแล้ว' : 'ส่งข้อความแล้ว'); renderAll();
 }
 function addWorklog(id) {
-  const tk = tickets.find(x => x.id === id), text = $('newWl').value.trim();
-  if (!text || !canAddWorklog(currentUser, tk)) return;
-  tk.worklogs.push({ by: currentUser.id, text, at: new Date() });
-  logAudit(currentUser, `บันทึก Work log ${id}`, '');
+  const tk = tickets.find(x => x.id === id), text = $('newWl').value.trim(), photos = [...pending.wl];
+  if ((!text && !photos.length) || !canAddWorklog(currentUser, tk)) return;
+  tk.worklogs.push({ by: currentUser.id, text, photos, at: new Date() });
+  pending.wl = [];   // รูปยังอยู่ในบันทึกแล้ว จึงไม่ลบจาก PHOTOS
+  logAudit(currentUser, `บันทึก Work log ${id}`, photos.length ? `แนบรูป ${photos.length} รูป` : '');
   toast('บันทึกการทำงานแล้ว'); renderAll();
 }
 
