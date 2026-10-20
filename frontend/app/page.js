@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 
 // ข้อความเมื่อ backend ตอบปฏิเสธ (ตรงกับรหัสที่ backend/server.js ส่งกลับ)
 const ERR = {
@@ -87,7 +89,7 @@ function SignIn({ onDone }) {
   return (
     <main className="page">
       <form className="card" onSubmit={submit}>
-        <img src="/logo.png" alt="Guru IT Solution" width={96} height={28} />
+        <Image src="/logo.png" alt="Guru IT Solution" width={96} height={28} unoptimized />
         <h1>เข้าสู่ระบบ</h1>
         <label>
           อีเมลที่ลงทะเบียน
@@ -175,20 +177,20 @@ function Detail({ id, user, onBack, onLogout }) {
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
 
-  // โหลดข้อมูลงานใหม่ (หลังทำรายการทุกครั้ง)
-  async function load() {
-    try {
-      const r = await fetch(`/api/tickets/${encodeURIComponent(id)}`);
-      if (r.status === 401) return onLogout();
-      if (r.status === 404) return setErr("ไม่พบงานนี้");
-      if (!r.ok) throw new Error(String(r.status));
-      setData(await r.json());
-      setErr("");
-    } catch {
-      setErr("โหลดงานไม่สำเร็จ ลองใหม่อีกครั้ง");
-    }
-  }
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [id]);
+  // เพิ่มค่านี้ทุกครั้งที่ทำรายการสำเร็จ เพื่อให้โหลดข้อมูลงานใหม่
+  const [version, setVersion] = useState(0);
+  useEffect(() => {
+    fetch(`/api/tickets/${encodeURIComponent(id)}`)
+      .then((r) => {
+        if (r.status === 401) return onLogout();
+        if (r.status === 404) return setErr("ไม่พบงานนี้");
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json().then((j) => { setData(j); setErr(""); });
+      })
+      .catch(() => setErr("โหลดงานไม่สำเร็จ ลองใหม่อีกครั้ง"));
+    // onLogout เปลี่ยนทุกครั้งที่ parent เรนเดอร์ จึงไม่ใส่ใน dependency
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, version]);
 
   // ส่งคำสั่งไป server แล้วโหลดใหม่ ถ้าไม่สำเร็จแสดงสาเหตุจาก server
   async function act(path, body) {
@@ -205,7 +207,7 @@ function Detail({ id, user, onBack, onLogout }) {
         setMsg(ERR[d.error] ?? "ทำรายการไม่สำเร็จ");
         return false;
       }
-      await load();
+      setVersion((v) => v + 1);
       return true;
     } catch {
       setMsg("ติดต่อเซิร์ฟเวอร์ไม่ได้");
@@ -330,7 +332,7 @@ function ReportCard({ rep, ticketId }) {
         <div className="row">
           <b>ผู้รับงาน</b>
           <p>{rep.sign_name}{rep.sign_position ? ` · ${rep.sign_position}` : ""} · {rep.sign_via === "app" ? "ลงนามผ่านแอป" : "ลงนามหน้างาน"}</p>
-          <img src={rep.signature} alt={`ลายเซ็นของ ${rep.sign_name}`} className="signed" />
+          <Image src={rep.signature} alt={`ลายเซ็นของ ${rep.sign_name}`} width={300} height={100} unoptimized className="signed" />
           <p className="hint">{when(rep.sign_at)}</p>
         </div>
       )}
@@ -539,7 +541,7 @@ function TextForm({ label, button, internal, onSend }) {
 function Nav({ user, active, onLogout }) {
   return (
     <nav className="nav" aria-label="เมนูหลัก">
-      <a className={`navlink ${active === "home" ? "on" : ""}`} href="/" aria-current={active === "home" ? "page" : undefined}>งานของฉัน</a>
+      <Link className={`navlink ${active === "home" ? "on" : ""}`} href="/" aria-current={active === "home" ? "page" : undefined}>งานของฉัน</Link>
       <span className="who">{user.name} · {ROLE[user.role]}</span>
       <button className="ghost" onClick={onLogout}>ออกจากระบบ</button>
     </nav>

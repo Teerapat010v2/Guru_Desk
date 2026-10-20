@@ -1,7 +1,8 @@
 {
-  "name": "frontend",
+  "name": "guru-service-desk-web",
   "version": "0.1.0",
   "private": true,
+  "description": "หน้าเว็บ Guru IT Service Desk (Next.js)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

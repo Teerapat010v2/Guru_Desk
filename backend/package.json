@@ -1,19 +1,16 @@
-﻿{
-    "name":  "backend",
-    "version":  "1.0.0",
-    "description":  "",
-    "main":  "index.js",
-    "keywords":  [
-
-                 ],
-    "author":  "",
-    "license":  "ISC",
-    "dependencies":  {
-                         "pg":  "^8.23.1"
-                     },
-    "type":  "module",
-    "private":  true,
-    "scripts":  {
-                    "start":  "node --env-file=.env server.js"
-                }
+{
+  "name": "guru-service-desk-api",
+  "version": "1.0.0",
+  "description": "API ของ Guru IT Service Desk (ต่อ PostgreSQL)",
+  "private": true,
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --env-file=.env server.js",
+    "set-password": "node --env-file=.env scripts/set-password.js"
+  },
+  "dependencies": {
+    "pg": "^8.23.1"
+  },
+  "license": "UNLICENSED"
 }

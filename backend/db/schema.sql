@@ -1,6 +1,6 @@
--- Guru IT Service Desk — ร่างโครงสร้างฐานข้อมูล PostgreSQL
--- ยังไม่ได้ทดสอบกับ PostgreSQL จริง (ยังไม่ได้ติดตั้ง) — ตรวจก่อนใช้งานจริง
--- ชื่อตาราง/ฟิลด์ตรงกับข้อมูลในแอป (js/data.js, js/app.js) เพื่อให้ย้ายข้อมูลได้ตรงๆ
+-- Guru IT Service Desk — โครงสร้างฐานข้อมูล PostgreSQL (ใช้จริง)
+-- ทดสอบแล้วกับ PostgreSQL 17 (ฐานข้อมูล guru_desk)
+-- ตารางตรงกับข้อมูลในแอป: users/customers/sites/tickets/... เพิ่ม sessions, password_hash และ report_seq ตามที่ backend ใช้
 
 CREATE TABLE customers (
   id        text PRIMARY KEY,               -- C1, C2 ...

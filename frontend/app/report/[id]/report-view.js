@@ -1,4 +1,6 @@
 "use client";
+import Image from "next/image";
+import Link from "next/link";
 
 import { useEffect, useState } from "react";
 
@@ -30,10 +32,10 @@ export default function ReportView({ id }) {
     <main className="report">
       <div className="no-print actions">
         <button onClick={() => window.print()}>พิมพ์ / บันทึกเป็น PDF</button>
-        <a className="navlink" href="/">← กลับไปงานของฉัน</a>
+        <Link className="navlink" href="/">← กลับไปงานของฉัน</Link>
       </div>
       <header className="rhead">
-        <img src="/logo.png" width={120} height={34} alt="Guru IT Solution" />
+        <Image src="/logo.png" width={120} height={34} alt="Guru IT Solution" unoptimized />
         <div>
           <h1>ใบรายงานการปฏิบัติงาน</h1>
           <p>เลขที่ {r.no}</p>
@@ -58,7 +60,7 @@ export default function ReportView({ id }) {
       <h2>การรับงาน</h2>
       {r.sign_name ? (
         <div className="sign">
-          <img src={r.signature} alt={`ลายเซ็นของ ${r.sign_name}`} />
+          <Image src={r.signature} alt={`ลายเซ็นของ ${r.sign_name}`} width={260} height={90} unoptimized />
           <p>{r.sign_name}{r.sign_position ? ` · ${r.sign_position}` : ""}</p>
           <p className="muted">{r.sign_via === "app" ? "ลงนามผ่านแอป" : "ลงนามหน้างาน"} · {when(r.sign_at)}</p>
         </div>
