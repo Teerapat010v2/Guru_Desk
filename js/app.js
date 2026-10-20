@@ -294,7 +294,7 @@ function renderTabbar() {
 /* สถานะงานในแถบซ้าย (คอมพิวเตอร์) — มือถือใช้แท็บด้านบนของหน้างานแทน */
 function sideFilters() {
   const vis = ofType(currentUser, visibleTickets(currentUser));
-  return `<nav class="side-filters" aria-label="สถานะงาน">${filtersFor(currentUser).map(([k, l, f]) => `<button class="${filter === k ? 'on' : ''}" onclick="setFilter('${k}')">${l}<b>${vis.filter(f).length}</b></button>`).join('')}</nav>`;
+  return `<nav class="side-filters" aria-label="สถานะงาน">${filtersFor(currentUser).map(([k, l, f]) => `<button data-k="${k}" class="${filter === k ? 'on' : ''}" onclick="setFilter('${k}')">${l}<b>${vis.filter(f).length}</b></button>`).join('')}</nav>`;
 }
 function renderFab() {
   const u = currentUser, show = canCreateTicket(u) && ['home', 'tickets'].includes(tab);
@@ -383,7 +383,7 @@ function pageHead(title, sub = '', actions = '', opt = {}) {
 }
 const tiles = items => `<div class="tiles">${items.filter(Boolean).map(t => `<button class="tile" onclick="${t.fn}"><i>${ic(t.icon, 26, 1.7)}${t.badge ? `<b class="tbdg">${t.badge}</b>` : ''}</i><span>${t.label}</span>${t.sub ? `<small>${t.sub}</small>` : ''}</button>`).join('')}</div>`;
 function textTabs(items, cur, setter) {
-  return `<div class="ttabs" role="tablist">${items.map(([k, l, n]) => `<button role="tab" aria-selected="${cur === k}" class="${cur === k ? 'on' : ''}" onclick="${setter}('${k}')">${l}${n != null ? `<sup>${n}</sup>` : ''}</button>`).join('')}</div>`;
+  return `<div class="ttabs" role="tablist">${items.map(([k, l, n]) => `<button role="tab" data-k="${k}" aria-selected="${cur === k}" class="${cur === k ? 'on' : ''}" onclick="${setter}('${k}')">${l}${n != null ? `<sup>${n}</sup>` : ''}</button>`).join('')}</div>`;
 }
 const densityBtn = () => ibtn(dense ? 'cards' : 'rows', dense ? 'ขยายรายการ (แสดงรายละเอียด)' : 'ย่อรายการ (แสดงแบบสั้น)', `setDense(${!dense})`);
 const empty = (msg, icon = 'check') => `<div class="empty">${ic(icon, 30, 1.5)}<div>${msg}</div></div>`;
@@ -541,8 +541,8 @@ function renderTickets() {
   return pageHead(title, sub, ibtn('search', 'ค้นหา', 'toggleSearch()', showSearch))
   + (showSearch ? `<div class="searchbox">${ic('search', 18)}<input id="q" type="search" placeholder="ค้นหาเลขงาน หัวข้อ สถานที่…" value="${esc(query)}" oninput="query=this.value;$('tlist').innerHTML=ticketListHtml()" aria-label="ค้นหางาน"></div>` : '')
   + (isStaff(u) ? typeChips(u) : '')
-  + `<div class="tbar tbar-tk">${textTabs(filtersFor(u).map(([k, l, f]) => [k, l, vis.filter(f).length]), filter, 'setFilter')}<span class="sp"></span>${densityBtn()}</div>
-  <div id="tlist">${ticketListHtml()}</div>`;
+  + fold('tk-status', 'สถานะงาน', `<div class="tbar tbar-tk">${textTabs(filtersFor(u).map(([k, l, f]) => [k, l, vis.filter(f).length]), filter, 'setFilter')}<span class="sp"></span>${densityBtn()}</div>`, { count: filteredTickets().length })
+  + `<div id="tlist">${ticketListHtml()}</div>`;
 }
 function ticketListHtml() {
   const arr = filteredTickets();

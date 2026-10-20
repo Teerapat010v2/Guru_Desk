@@ -609,6 +609,8 @@ label.fl+.voicebox{margin-top:6px}
    คอมพิวเตอร์ (≥960px): เมนูซ้าย · เนื้อหากว้าง · รายละเอียดเป็นแผงขวา · ฟอร์มกลางจอ
    ========================================================= */
 @media (min-width:960px){
+  .fold[data-fold="tk-status"] .fold-h{display:none}
+  .fold[data-fold="tk-status"] .fold-b{display:block}
   .tbar-tk .ttabs{display:none}
   .side-filters{display:flex;flex-direction:column;gap:2px;margin:18px 10px 0;padding-top:14px;border-top:1px solid var(--line)}
   .side-filters button{display:flex;align-items:center;justify-content:space-between;gap:8px;border:0;background:none;padding:9px 12px;border-radius:10px;font:inherit;font-size:14px;color:var(--text-2);cursor:pointer;text-align:start}
@@ -670,3 +672,10 @@ label.fl+.voicebox{margin-top:6px}
   .p-table th,.p-grid th{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+/* สีสถานะตามความสำคัญ: ต้องมอบหมาย (แดง) > กำลังทำ (น้ำเงิน) > รอเซ็นรับ (ส้ม) > พักงาน (เทา) · ปิดแล้ว (เขียว) */
+.ttabs button[data-k=new],.side-filters button[data-k=new]{color:var(--danger)}
+.ttabs button[data-k=active],.ttabs button[data-k=todo],.side-filters button[data-k=active],.side-filters button[data-k=todo]{color:var(--primary)}
+.ttabs button[data-k=resolved],.side-filters button[data-k=resolved]{color:var(--warn)}
+.ttabs button[data-k=pending],.side-filters button[data-k=pending]{color:var(--text-2)}
+.ttabs button[data-k=closed],.side-filters button[data-k=closed]{color:var(--ok)}
+.ttabs button.on,.side-filters button.on{color:var(--primary)}
