@@ -1,0 +1,15 @@
+{
+  "name": "Guru IT Service Desk",
+  "short_name": "Guru IT",
+  "description": "แจ้งปัญหาไอที ติดตามงาน และเซ็นรับงาน",
+  "lang": "th",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F4F7FB",
+  "theme_color": "#0668D3",
+  "icons": [
+    { "src": "img/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

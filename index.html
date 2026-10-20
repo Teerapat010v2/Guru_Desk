@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="th" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F3F6FA">
+<meta name="description" content="แจ้งปัญหาไอที ติดตามงาน และเซ็นรับงาน — Guru IT Solution">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Guru IT">
+<title>Guru IT Service Desk</title>
+<!-- ตั้งโหมดสีก่อนวาดหน้า เพื่อไม่ให้จอกระพริบ -->
+<script>try{var t=localStorage.getItem("gitsd-theme");document.documentElement.dataset.theme=t==="dark"?"dark":"light"}catch(e){}</script>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="img/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="img/icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="shell" id="shell">
+  <main class="scroll" id="screen"></main>
+  <nav class="tabbar" id="tabbar" aria-label="เมนูหลัก"></nav>
+  <button class="fab" id="fab" onclick="openCreate()" hidden></button>
+  <div class="fl-tools" id="flTools"></div>
+  <div class="sheet-bg" id="sheetBg" onclick="closeSheet()"></div>
+  <section class="sheet" id="sheet" aria-hidden="true"></section>
+  <div class="modal" id="modal" aria-hidden="true">
+    <div class="modal-bg" onclick="closeModal()"></div>
+    <div class="modal-card" id="modalCard" role="dialog" aria-modal="true"></div>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+<section class="doc" id="doc" aria-hidden="true"></section>
+<div class="lightbox" id="lightbox" onclick="closeLightbox()" role="dialog" aria-label="รูปขนาดใหญ่">
+  <img id="lbImg" alt="">
+  <button class="xbtn" aria-label="ปิดรูป"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+</div>
+<script src="js/data.js" defer></script>
+<script src="js/permissions.js" defer></script>
+<script src="js/i18n.js" defer></script>
+<script src="js/app.js" defer></script>
+</body>
+</html>
