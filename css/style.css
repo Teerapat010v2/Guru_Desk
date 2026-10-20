@@ -93,9 +93,12 @@ a{color:var(--primary)}
 .ttabs button.on::after{content:'';position:absolute;left:0;right:0;bottom:0;height:2.5px;border-radius:2px;background:var(--primary)}
 /* มือถือ: แท็บและชิปเป็นตาราง (จำนวนคอลัมน์ตามความกว้างจอ) ตัวหนังสือปรับตามจอ ไม่ตกบรรทัด */
 @media (max-width:959px){
-  .tbar .sp{display:none}
+  .tbar .sp,.tbar .ibtn{display:none}
   .ttabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));overflow:visible;padding-right:0;row-gap:6px;column-gap:8px;-webkit-mask-image:none;mask-image:none}
-  .ttabs button{font-size:clamp(12px,3.7vw,15px);white-space:nowrap;min-width:0;padding:6px 0}
+  .ttabs button{font-size:clamp(12px,3.7vw,15px);white-space:nowrap;min-width:0;min-height:40px;padding:6px 8px;border-radius:12px;background:var(--card);display:flex;align-items:center;justify-content:center;gap:2px}
+  .ttabs button.on{background:var(--primary-s);color:var(--primary);font-weight:600}
+  .ttabs button.on::after{display:none}
+  .ttabs button sup{margin:0 0 0 2px;padding:0 6px;border-radius:999px;background:var(--card-2);font-size:11px;vertical-align:middle;line-height:1.7}
   .tchips{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible}
   .tchips button{font-size:clamp(12px,3.6vw,14px);padding:8px 2px;gap:3px;min-width:0}
   .tchips button svg{width:15px;height:15px}
