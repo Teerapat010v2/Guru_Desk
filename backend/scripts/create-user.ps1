@@ -2,7 +2,8 @@
 # รหัสผ่านถามแบบไม่แสดงตัวอักษรบนจอ และไม่ติดในประวัติคำสั่ง
 $backend = Split-Path -Parent $PSScriptRoot
 $env:NAME = Read-Host 'ชื่อ-นามสกุล'
-$env:EMAIL = Read-Host 'อีเมล (ใช้เข้าสู่ระบบ)'
+# ตั้ง $env:EMAIL ไว้ก่อนรันได้ จะไม่ถามซ้ำ (กันพิมพ์ผิดตอนสลับภาษาแป้นพิมพ์)
+if ($env:EMAIL) { Write-Host "อีเมล: $env:EMAIL" } else { $env:EMAIL = Read-Host 'อีเมล (ใช้เข้าสู่ระบบ)' }
 $role = Read-Host 'บทบาท [admin / team_leader / technician / customer] (กด Enter = admin)'
 $env:ROLE = if ($role) { $role.Trim() } else { 'admin' }
 if ($env:ROLE -in 'technician', 'team_leader') { $env:TEAM = Read-Host 'ทีม (เช่น T1 ว่างได้)' }
