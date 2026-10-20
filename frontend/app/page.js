@@ -23,6 +23,9 @@ const ERR = {
   invalid_company: "กรุณาเลือกบริษัท หรือกรอกชื่อบริษัทใหม่",
   self_lockout: "เปลี่ยนบทบาทหรือปิดบัญชีของตัวเองไม่ได้",
   email_taken: "อีเมลนี้มีบัญชีอยู่แล้ว",
+  invalid_subject: "กรุณากรอกหัวข้อ (ไม่เกิน 120 ตัว)",
+  invalid_category: "กรุณาเลือกหมวดปัญหา",
+  invalid_priority: "กรุณาเลือกความสำคัญ",
 };
 const ROLE = { customer: "ลูกค้า", technician: "ช่างเทคนิค", team_leader: "หัวหน้าทีม", admin: "ผู้ดูแลระบบ" };
 const STATUS = {
@@ -36,6 +39,7 @@ const CATEGORY = {
   printer: "เครื่องพิมพ์", network: "อินเทอร์เน็ต/เครือข่าย", account: "บัญชี/รหัสผ่าน",
   install: "ติดตั้งเครื่อง", repair: "ซ่อมอุปกรณ์", cctv: "กล้องวงจรปิด", other: "อื่น ๆ",
 };
+const TYPE = { service: "งานบริการ", complaint: "ร้องเรียน" };
 const when = (s) => new Date(s).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" });
 
 export default function Page() {
@@ -136,6 +140,9 @@ function SignIn({ onDone }) {
 function Home({ user, nav, onOpen, onLogout }) {
   const [tickets, setTickets] = useState(null);
   const [err, setErr] = useState("");
+  const [creating, setCreating] = useState(false);
+  // ตรงกับ canCreateTicket ใน backend/rules.js (server ตรวจซ้ำ)
+  const canCreate = user.role === "customer" || user.role === "team_leader" || user.role === "admin";
 
   useEffect(() => {
     fetch("/api/home")
@@ -157,7 +164,12 @@ function Home({ user, nav, onOpen, onLogout }) {
           <p className="hint">{ROLE[user.role]}</p>
           <h1>สวัสดี คุณ{user.name}</h1>
         </div>
+        {canCreate && !creating && (
+          <button className="ghost" onClick={() => setCreating(true)}>{user.role === "customer" ? "+ แจ้งปัญหา" : "+ เปิดงานใหม่"}</button>
+        )}
       </header>
+
+      {creating && <NewTicket user={user} onLogout={onLogout} onCancel={() => setCreating(false)} onCreated={onOpen} />}
 
       <section className="card">
         <h2>งานของคุณ</h2>
@@ -170,12 +182,113 @@ function Home({ user, nav, onOpen, onLogout }) {
               <b>{t.subject}</b>
               <span className={`prio ${t.priority}`}>{PRIORITY[t.priority]}</span>
             </div>
-            <p className="hint">{t.id} · {t.customer}</p>
+            <p className="hint">{t.id} · {t.customer}{t.type === "complaint" ? " · ร้องเรียน" : ""}</p>
             <p className="hint">{STATUS[t.status]}{t.assignee ? ` · ช่าง${t.assignee}` : " · ยังไม่มอบหมาย"}</p>
           </button>
         ))}
       </section>
     </main>
+  );
+}
+
+// เปิดงานใหม่: ลูกค้าเล่าปัญหาช่องเดียว · หัวหน้าทีม/ผู้ดูแลกรอกครบและเลือกบริษัทลูกค้า
+function NewTicket({ user, onLogout, onCancel, onCreated }) {
+  const staff = user.role !== "customer";
+  const [f, setF] = useState({ type: "service", desc: "", urgent: false, subject: "", category: "", priority: "medium", customerId: "", location: "" });
+  const [customers, setCustomers] = useState(null);
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
+
+  useEffect(() => {
+    if (!staff) return;
+    fetch("/api/customers")
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((cs) => { setCustomers(cs); setF((x) => ({ ...x, customerId: cs[0]?.id ?? "" })); })
+      .catch(() => setMsg("โหลดรายชื่อบริษัทไม่สำเร็จ"));
+  }, [staff]);
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setMsg("");
+    try {
+      const r = await fetch("/api/tickets", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(f),
+      });
+      if (r.status === 401) return onLogout();
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) return setMsg(ERR[d.error] ?? "เปิดงานไม่สำเร็จ");
+      onCreated(d.id);
+    } catch {
+      setMsg("ติดต่อเซิร์ฟเวอร์ไม่ได้");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const complaint = f.type === "complaint";
+  return (
+    <form className="card form" onSubmit={submit}>
+      <h2>{staff ? "เปิดงานใหม่" : complaint ? "ร้องเรียน / ติชมบริการ" : "แจ้งปัญหา"}</h2>
+      <label>
+        ประเภทงาน
+        <select value={f.type} onChange={set("type")}>
+          <option value="service">{staff ? "งานบริการ" : "แจ้งปัญหา / ขอบริการ"}</option>
+          <option value="complaint">ร้องเรียน / ติชมบริการ</option>
+        </select>
+      </label>
+      {staff && (
+        <>
+          {customers?.length === 0 && <p className="hint">ยังไม่มีบริษัทลูกค้า — เพิ่มได้ที่เมนูจัดการบัญชี (บัญชีลูกค้า → บริษัทใหม่)</p>}
+          <label>
+            บริษัทลูกค้า
+            <select value={f.customerId} onChange={set("customerId")} required>
+              {(customers ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </label>
+          <label>หัวข้อ<input value={f.subject} onChange={set("subject")} maxLength={120} placeholder="เช่น คอมพิวเตอร์เปิดไม่ติด" required /></label>
+          <label>
+            หมวดปัญหา
+            <select value={f.category} onChange={set("category")} required>
+              <option value="" disabled>เลือกหมวด</option>
+              {Object.entries(CATEGORY).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </label>
+          <label>
+            ความสำคัญ
+            <select value={f.priority} onChange={set("priority")}>
+              {Object.entries(PRIORITY).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </label>
+          <label>ชั้น / ห้อง / จุด (ไม่บังคับ)<input value={f.location} onChange={set("location")} maxLength={100} placeholder="เช่น ชั้น 2 ห้องบัญชี" /></label>
+        </>
+      )}
+      <label>
+        {staff ? "รายละเอียด (ไม่บังคับ ลูกค้าเห็น)" : complaint ? "เล่าสิ่งที่ไม่พอใจ — หัวหน้าทีมจะดูแลโดยตรง" : "บอกเราสั้น ๆ ว่าเกิดอะไรขึ้น"}
+        <textarea
+          value={f.desc}
+          onChange={set("desc")}
+          rows={4}
+          maxLength={2000}
+          required={!staff}
+          placeholder={staff ? "อาการที่พบ เกิดตั้งแต่เมื่อไร" : complaint ? "เช่น ช่างมาช้ากว่านัด ไม่มีใครโทรแจ้ง" : "เช่น เครื่องพิมพ์ชั้น 2 พิมพ์ไม่ออก"}
+        />
+      </label>
+      {!staff && !complaint && (
+        <label className="check">
+          <input type="checkbox" checked={f.urgent} onChange={set("urgent")} />
+          ด่วน — ใช้งานไม่ได้เลย หรือกระทบหลายคน
+        </label>
+      )}
+      {msg && <p role="alert" className="err">{msg}</p>}
+      <div className="btns">
+        <button type="submit" disabled={busy || (staff && !customers?.length)}>{busy ? "กำลังส่ง…" : staff ? "เปิดงาน" : "ส่งเรื่อง"}</button>
+        <button type="button" className="ghost" onClick={onCancel}>ยกเลิก</button>
+      </div>
+    </form>
   );
 }
 
@@ -237,6 +350,7 @@ function Detail({ id, user, nav, onBack, onLogout }) {
         </div>
         <dl className="facts">
           <dt>เลขงาน</dt><dd>{t.id}</dd>
+          <dt>ประเภทงาน</dt><dd>{TYPE[t.type]}</dd>
           <dt>ลูกค้า</dt><dd>{t.customer}</dd>
           <dt>สถานที่</dt><dd>{[t.site, t.location].filter(Boolean).join(" · ") || "-"}</dd>
           <dt>ประเภทปัญหา</dt><dd>{CATEGORY[t.category] ?? t.category}</dd>

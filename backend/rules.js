@@ -16,7 +16,9 @@ export function canTransition(u, t, to) {
   return true;
 }
 
-export const canAssign = (u, t) => isManager(u) && ['new', 'assigned', 'pending'].includes(t.status);
+// เปิดงานใหม่: ลูกค้า (เฉพาะบริษัทตัวเอง) หรือหัวหน้าทีม/ผู้ดูแล (แทนลูกค้ารายใดก็ได้) · ช่างเปิดงานเองไม่ได้
+export const canCreateTicket = u => u.role === 'customer' ? !!u.customer_id : isManager(u);
+export const canAssign =(u, t) => isManager(u) && ['new', 'assigned', 'pending'].includes(t.status);
 // หัวหน้าทีมมอบหมายได้เฉพาะช่างในทีมตัวเอง (ต้องมีทีมจริง) ผู้ดูแลได้ทุกคน
 export const canAssignTech = (u, tech) => u.role === 'admin' || (!!u.team && tech.team === u.team);
 export const canWorklog = (u, t) => u.role === 'technician' && t.assignee_id === u.id;

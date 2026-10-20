@@ -3,12 +3,14 @@ import http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import pg from 'pg';
 import { hashPassword, verifyPassword, hashToken, newToken } from './auth.js';
-import { isStaff, isManager, canTransition, canAssign, canAssignTech, canWorklog, canResolve, canSignOff, canRate, actionsFor } from './rules.js';
+import { isStaff, isManager, canCreateTicket, canTransition, canAssign, canAssignTech, canWorklog, canResolve, canSignOff, canRate, actionsFor } from './rules.js';
 
 const port = Number(process.env.PORT || 4000);
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ROLES = ['admin', 'team_leader', 'technician', 'customer'];
+const CATEGORIES = ['printer', 'network', 'account', 'install', 'repair', 'cctv', 'other'];
+const PRIORITIES = ['urgent', 'high', 'medium', 'low'];
 const COOKIE = 'gd_session';
 const SESSION_HOURS = 12;
 // ใช้ตรวจรหัสเมื่อไม่มีบัญชี เพื่อให้เวลาตอบใกล้เคียงกัน (กันเดาว่าอีเมลไหนมีบัญชี)
@@ -124,6 +126,57 @@ http.createServer(async (req, res) => {
         order by case t.priority when 'urgent' then 0 when 'high' then 1 when 'medium' then 2 else 3 end, t.created_at desc
         limit 50`, [scopeOf(me), me.id, me.customer_id]);
       return send(res, 200, rows);
+    }
+    // รายชื่อบริษัทลูกค้า: ให้หัวหน้าทีม/ผู้ดูแลเลือกตอนเปิดงานแทนลูกค้า
+    if (req.method === 'GET' && req.url === '/api/customers') {
+      const me = await currentUser(req);
+      if (!me) return send(res, 401, { error: 'not_signed_in' });
+      if (!isManager(me)) return send(res, 403, { error: 'forbidden' });
+      const { rows } = await pool.query('select id, name from customers order by name');
+      return send(res, 200, rows);
+    }
+    if (req.method === 'POST' && req.url === '/api/tickets') {
+      const me = await currentUser(req);
+      if (!me) return send(res, 401, { error: 'not_signed_in' });
+      if (!canCreateTicket(me)) return send(res, 403, { error: 'forbidden' });
+      const b = await readJson(req);
+      const type = b.type === 'complaint' ? 'complaint' : 'service';
+      const desc = String(b.desc ?? '').trim();
+      if (desc.length > 2000) return send(res, 400, { error: 'invalid_text' });
+      let t;
+      if (me.role === 'customer') {
+        // ลูกค้าเล่าปัญหาช่องเดียว: บรรทัดแรกเป็นหัวข้อ ทีมงานแก้หมวดทีหลังได้ · ร้องเรียนให้ความสำคัญสูงเสมอ
+        if (!desc) return send(res, 400, { error: 'invalid_text' });
+        const first = desc.split('\n')[0].trim();
+        t = { type, customerId: me.customer_id, location: null, category: 'other',
+          subject: first.length > 60 ? `${first.slice(0, 57)}…` : first,
+          priority: type === 'complaint' ? 'high' : b.urgent === true ? 'urgent' : 'medium' };
+      } else {
+        t = { type, customerId: String(b.customerId ?? ''), location: String(b.location ?? '').trim().slice(0, 100) || null,
+          category: String(b.category ?? ''), subject: String(b.subject ?? '').trim(), priority: String(b.priority ?? '') };
+        if (!t.subject || t.subject.length > 120) return send(res, 400, { error: 'invalid_subject' });
+        if (!CATEGORIES.includes(t.category)) return send(res, 400, { error: 'invalid_category' });
+        if (!PRIORITIES.includes(t.priority)) return send(res, 400, { error: 'invalid_priority' });
+      }
+      try {
+        const id = await inTx(async c => {
+          // ล็อกสั้น ๆ กันสองคนได้เลขงานเดียวกัน (ผู้ใช้ของแอปสร้าง sequence เองไม่ได้)
+          await c.query("select pg_advisory_xact_lock(hashtext('ticket_id'))");
+          const { rows: [{ n }] } = await c.query("select coalesce(max(substr(id, 3)::bigint), 1000) + 1 as n from tickets");
+          const tid = `T-${n}`;
+          await c.query(`insert into tickets (id, type, customer_id, location, subject, category, priority, status)
+                         values ($1, $2, $3, $4, $5, $6, $7, 'new')`, [tid, t.type, t.customerId, t.location, t.subject, t.category, t.priority]);
+          await c.query("insert into ticket_history (ticket_id, from_status, to_status, by_user) values ($1, null, 'new', $2)", [tid, me.id]);
+          if (desc) await c.query("insert into comments (ticket_id, by_user, vis, text) values ($1, $2, 'public', $3)", [tid, me.id, desc]);
+          await c.query('insert into audit_log (actor_name, role, action, detail) values ($1, $2, $3, $4)',
+            [me.name, me.role, `เปิดงาน ${tid}`, t.subject]);
+          return tid;
+        });
+        return send(res, 200, { id });
+      } catch (err) {
+        if (err.code === '23503') return send(res, 400, { error: 'invalid_company' });   // บริษัทไม่มีอยู่จริง
+        throw err;
+      }
     }
     if (req.method === 'GET' && req.url.startsWith('/api/tickets/')) {
       const me = await currentUser(req);
