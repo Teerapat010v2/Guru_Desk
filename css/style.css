@@ -49,6 +49,7 @@ a{color:var(--primary)}
 .scroll{flex:1;overflow-y:auto;padding:0 16px 112px;overscroll-behavior:contain}
 .scroll::-webkit-scrollbar{width:0}
 .side-brand{display:none}
+.side-filters{display:none}
 .sheet-bg{display:none}
 
 /* หัวหน้า: หัวข้อใหญ่ซ้าย · ไอคอนขวา */
@@ -608,6 +609,12 @@ label.fl+.voicebox{margin-top:6px}
    คอมพิวเตอร์ (≥960px): เมนูซ้าย · เนื้อหากว้าง · รายละเอียดเป็นแผงขวา · ฟอร์มกลางจอ
    ========================================================= */
 @media (min-width:960px){
+  .tbar-tk .ttabs{display:none}
+  .side-filters{display:flex;flex-direction:column;gap:2px;margin:18px 10px 0;padding-top:14px;border-top:1px solid var(--line)}
+  .side-filters button{display:flex;align-items:center;justify-content:space-between;gap:8px;border:0;background:none;padding:9px 12px;border-radius:10px;font:inherit;font-size:14px;color:var(--text-2);cursor:pointer;text-align:start}
+  .side-filters button:hover{background:var(--card-2)}
+  .side-filters button.on{background:var(--primary-s);color:var(--primary);font-weight:600}
+  .side-filters b{font-size:12px;font-weight:600;background:var(--card-2);border-radius:999px;padding:1px 8px}
   body{background:var(--bg)}
   .shell{max-width:none;margin:0;display:grid;grid-template-columns:232px minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
   .tabbar{position:relative;grid-row:1;grid-column:1;flex-direction:column;justify-content:flex-start;gap:2px;padding:24px 12px;background:var(--surface);border-top:0;border-right:1px solid var(--line);overflow-y:auto;z-index:5}

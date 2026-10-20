@@ -289,7 +289,12 @@ function renderTabbar() {
     const b = tabBadge(currentUser, x.id);
     return `<button class="tab ${x.id === tab ? 'on' : ''}" onclick="goTab('${x.id}')" ${x.id === tab ? 'aria-current="page"' : ''}>
       <i>${ic(x.icon, 24, 1.7)}${b ? `<span class="bdg" aria-label="${b} รายการ">${b}</span>` : ''}</i><span>${x.label}</span></button>`;
-  }).join('');
+  }).join('') + (tab === 'tickets' ? sideFilters() : '');
+}
+/* สถานะงานในแถบซ้าย (คอมพิวเตอร์) — มือถือใช้แท็บด้านบนของหน้างานแทน */
+function sideFilters() {
+  const vis = ofType(currentUser, visibleTickets(currentUser));
+  return `<nav class="side-filters" aria-label="สถานะงาน">${filtersFor(currentUser).map(([k, l, f]) => `<button class="${filter === k ? 'on' : ''}" onclick="setFilter('${k}')">${l}<b>${vis.filter(f).length}</b></button>`).join('')}</nav>`;
 }
 function renderFab() {
   const u = currentUser, show = canCreateTicket(u) && ['home', 'tickets'].includes(tab);
@@ -536,7 +541,7 @@ function renderTickets() {
   return pageHead(title, sub, ibtn('search', 'ค้นหา', 'toggleSearch()', showSearch))
   + (showSearch ? `<div class="searchbox">${ic('search', 18)}<input id="q" type="search" placeholder="ค้นหาเลขงาน หัวข้อ สถานที่…" value="${esc(query)}" oninput="query=this.value;$('tlist').innerHTML=ticketListHtml()" aria-label="ค้นหางาน"></div>` : '')
   + (isStaff(u) ? typeChips(u) : '')
-  + `<div class="tbar">${textTabs(filtersFor(u).map(([k, l, f]) => [k, l, vis.filter(f).length]), filter, 'setFilter')}<span class="sp"></span>${densityBtn()}</div>
+  + `<div class="tbar tbar-tk">${textTabs(filtersFor(u).map(([k, l, f]) => [k, l, vis.filter(f).length]), filter, 'setFilter')}<span class="sp"></span>${densityBtn()}</div>
   <div id="tlist">${ticketListHtml()}</div>`;
 }
 function ticketListHtml() {
