@@ -1,19 +1,12 @@
-/* สีหลักเหมือนแอดเดิม (น้ำเงินโลโก้) — ค่ากลางวัน */
-:root {
-  --bg: #f3f6fa;
-  --card: #ffffff;
-  --line: #e4e9ef;
-  --text: #18212d;
-  --text-2: #5f6875;
-  --primary: #0668d3;
-  --btn-d: #0552a8;
-  --danger: #c4320f;
-}
+/* สีและโหมดกลางคืนมาจาก style.css (แอปเดิม) · ไฟล์นี้คือสไตล์ของหน้าที่ยังไม่ได้ย้ายมาใช้ดีไซน์เดิม */
+/* กันกฎของแอปเดิมที่ชื่อคลาสซ้ำ ไม่ให้หน้าใหม่เพี้ยน */
+.card { margin-bottom: 0; }
+.row { margin-top: 0; flex-wrap: nowrap; }
+.signed { padding: 0; margin-top: 0; }
+label.fl { color: var(--text); }
+.nav .ftool { margin: 0; box-shadow: none; }
+.ftool:hover { background: var(--card-2); }
 
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--text); }
-
-.page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
 .card {
   width: min(400px, 100%);
   background: var(--card);
@@ -43,7 +36,7 @@ button {
   border: 0;
   border-radius: 12px;
   background: var(--primary);
-  color: #fff;
+  color: var(--on-btn);
   cursor: pointer;
   margin-top: 6px;
 }
@@ -60,8 +53,8 @@ h2 { margin: 0; font-size: 18px; font-weight: 500; }
 .job { border-top: 1px solid var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 4px; }
 .job-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .prio { font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 999px; background: var(--line); color: var(--text-2); white-space: nowrap; }
-.prio.urgent { background: #fdece7; color: var(--danger); }
-.prio.high { background: #fff3df; color: #9a5500; }
+.prio.urgent { background: var(--danger-s); color: var(--danger); }
+.prio.high { background: var(--warn-s); color: var(--warn); }
 button.job { display: flex; flex-direction: column; gap: 4px; text-align: left; background: none; color: var(--text); margin: 0; padding: 10px 0 0; border-top: 1px solid var(--line); border-radius: 0; min-height: 0; }
 button.job:hover { background: none; }
 .facts { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 0; font-size: 14px; }
@@ -80,7 +73,7 @@ button.job:hover { background: none; }
 .pad button { align-self: flex-start; }
 .signed { width: 100%; max-width: 300px; height: auto; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
 .star { min-width: 44px; min-height: 44px; flex: 0 0 auto; background: var(--card); color: var(--text); border: 1px solid var(--line); }
-.star.on { background: #fff3df; color: #9a5500; border-color: #f2a900; }
+.star.on { background: var(--warn-s); color: var(--warn); border-color: var(--gold); }
 .star:hover { background: var(--card); }
 .btns .star { flex: 0 0 auto; }
 

@@ -102,38 +102,79 @@ function SignIn({ onDone }) {
     }
   }
 
+  // หน้าตาเดียวกับแอปเดิม (คลาสจาก style.css) · รหัสผ่านจริงใช้ร่วมกันทั้งลูกค้าและเจ้าหน้าที่ จึงไม่แยกสองหน้าแบบเดิม
   return (
-    <main className="page">
-      <form className="card" onSubmit={submit}>
-        <Image src="/logo.png" alt="Guru IT Solution" width={96} height={28} unoptimized />
-        <h1>เข้าสู่ระบบ</h1>
-        <label>
-          อีเมลที่ลงทะเบียน
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="username"
-            placeholder="name@company.com"
-            required
-          />
-        </label>
-        <label>
-          รหัสผ่าน
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-        </label>
-        {err && <p role="alert" className="err">{err}</p>}
-        <button type="submit" disabled={busy}>
-          {busy ? "กำลังตรวจสอบ…" : "เข้าสู่ระบบ"}
-        </button>
-      </form>
-    </main>
+    <div className="shell joining">
+      <main className="scroll">
+        <div className="page">
+          <form className="join" onSubmit={submit}>
+            <div style={{ display: "flex", justifyContent: "flex-end", margin: "0 0 6px" }}><ThemeButton /></div>
+            <Image className="ph-logo" src="/logo.png" alt="Guru IT Solution" width={96} height={28} unoptimized />
+            <h1>เข้าสู่ระบบ</h1>
+            <p className="hint" style={{ margin: "2px 0 0" }}>Guru IT Service Desk · สำหรับลูกค้า ช่าง และเจ้าหน้าที่</p>
+            <label className="fl">
+              อีเมลที่ลงทะเบียน
+              <input
+                type="email"
+                inputMode="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="username"
+                maxLength={100}
+                placeholder="name@company.com"
+                required
+              />
+            </label>
+            <label className="fl">
+              รหัสผ่าน
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                maxLength={200}
+                required
+              />
+            </label>
+            {err && <p role="alert" className="err" style={{ marginTop: 8 }}>{err}</p>}
+            <button type="submit" className="btn primary block" style={{ marginTop: 16 }} disabled={busy}>
+              {busy ? "กำลังตรวจสอบ…" : "เข้าสู่ระบบ"}
+            </button>
+            <div className="divider">ยังไม่มีบัญชี?</div>
+            <p className="hint" style={{ margin: "6px 0 0" }}>ขอให้ตัวแทนบริษัทของคุณ หรือผู้ดูแลระบบ Guru IT สร้างบัญชีให้</p>
+          </form>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+// ไอคอนชุดเดียวกับแอปเดิม (เส้น 24×24)
+const ICON = {
+  sun: <><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></>,
+  moon: <path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z" />,
+};
+const Icon = ({ name, size = 22 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {ICON[name]}
+  </svg>
+);
+
+// สลับโหมดกลางวัน/กลางคืน จำไว้ในเครื่อง (layout.js อ่านค่านี้ก่อนวาดหน้า)
+function ThemeButton() {
+  // หน้านี้วาดฝั่งเบราว์เซอร์เท่านั้น (รอ /api/me ก่อน) จึงอ่าน document ได้ตรง ๆ
+  const [dark, setDark] = useState(() => document.documentElement.dataset.theme === "dark");
+  function toggle() {
+    const t = dark ? "light" : "dark";
+    document.documentElement.dataset.theme = t;
+    try { localStorage.setItem("gitsd-theme", t); } catch { /* ใช้ได้เฉพาะรอบนี้ */ }
+    setDark(!dark);
+  }
+  const label = dark ? "โหมดกลางวัน" : "โหมดกลางคืน";
+  return (
+    <button type="button" className="ftool" onClick={toggle} aria-label={label} title={label}>
+      <Icon name={dark ? "sun" : "moon"} size={20} />
+    </button>
   );
 }
 
@@ -670,6 +711,7 @@ function Nav({ user, active, onGo, onLogout }) {
       {link("home", "งานของฉัน")}
       {user.role === "admin" && link("users", "จัดการบัญชี")}
       <span className="who">{user.name} · {ROLE[user.role]}</span>
+      <ThemeButton />
       <button className="ghost" onClick={onLogout}>ออกจากระบบ</button>
     </nav>
   );
