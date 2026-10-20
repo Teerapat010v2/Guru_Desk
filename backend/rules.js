@@ -32,17 +32,8 @@ export const canSignOff = (u, t, s) => t.status === 'resolved' && s.report && !s
 export const canRate = (u, t, s) => t.status === 'closed' && !!s.signed && !s.rated
   && (u.role === 'customer' || (u.role === 'technician' && t.assignee_id === u.id && s.signed.via === 'onsite'
       && Date.now() - new Date(s.signed.at).getTime() < 15 * 60000));
-
-// รายการที่หน้ารายละเอียดแสดงปุ่มได้ (คำนวณที่ server เพื่อให้ตรงกับการตรวจจริง)
-// s = { report: มีใบรายงานไหม, signed: {via, at} หรือ null, rated: ให้คะแนนแล้วไหม }
-export function actionsFor(u, t, s) {
-  return {
-    transitions: (STATUS_FLOW[t.status] ?? []).filter(to => to !== 'resolved' && canTransition(u, t, to)),
-    resolve: canResolve(u, t),
-    signoff: canSignOff(u, t, s),
-    rate: canRate(u, t, s),
-    assign: canAssign(u, t),
-    worklog: canWorklog(u, t),
-    internalComment: isStaff(u),
-  };
-}
+// ลูกค้าแจ้งว่างานยังไม่เรียบร้อย: ส่งงานที่รอเซ็นรับกลับไปให้ช่างทำต่อ (server ตรวจแล้วว่าเป็นงานของบริษัทตัวเอง)
+export const canReject = (u, t) => u.role === 'customer' && t.status === 'resolved';
+// พาร์ทเนอร์/สถานที่ และทีมช่าง: หัวหน้าทีมและผู้ดูแล · ผู้ใช้ทุกบทบาท: ผู้ดูแลเท่านั้น
+export const canManagePartners = isManager;
+export const canManageTeam = isManager;

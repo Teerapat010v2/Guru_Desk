@@ -3,7 +3,7 @@ import http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import pg from 'pg';
 import { hashPassword, verifyPassword, hashToken, newToken } from './auth.js';
-import { isStaff, isManager, canCreateTicket, canTransition, canAssign, canAssignTech, canWorklog, canResolve, canSignOff, canRate, actionsFor } from './rules.js';
+import { isStaff, isManager, canCreateTicket, canTransition, canReject, canAssign, canAssignTech, canWorklog, canResolve, canSignOff, canRate, canManagePartners, canManageTeam } from './rules.js';
 
 const port = Number(process.env.PORT || 4000);
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
@@ -60,6 +60,11 @@ async function visibleTicket(me, id) {
   return t ?? null;
 }
 
+// บันทึกตรวจสอบ (เพิ่มอย่างเดียว) — q คือ pool หรือ client ของธุรกรรม
+const audit = (q, me, action, detail = null) =>
+  q.query('insert into audit_log (actor_name, role, action, detail) values ($1, $2, $3, $4)', [me.name, me.role, action, detail]);
+const STATUS_TH = { new: 'ใหม่', assigned: 'มอบหมายแล้ว', in_progress: 'กำลังดำเนินการ', pending: 'พักงาน', resolved: 'รอลูกค้าเซ็นรับ', closed: 'ปิดงาน' };
+
 // ทำหลายคำสั่งเป็นชุดเดียว: ถ้าขั้นใดพัง ไม่บันทึกครึ่งๆ กลางๆ
 async function inTx(fn) {
   const client = await pool.connect();
@@ -111,29 +116,68 @@ http.createServer(async (req, res) => {
       const u = await currentUser(req);
       return u ? send(res, 200, { id: u.id, name: u.name, role: u.role }) : send(res, 401, { error: 'not_signed_in' });
     }
-    if (req.method === 'GET' && req.url === '/api/home') {
+    // ข้อมูลทั้งหมดที่ผู้ใช้คนนี้มีสิทธิ์เห็น ในรูปแบบเดียวกับที่หน้าเว็บ (js/app.js) ใช้ — โหลดใหม่หลังทุกการกระทำ
+    // shortcut: ส่งทุกงานที่เห็นได้พร้อมลายเซ็นในครั้งเดียว — แบ่งหน้า/โหลดเฉพาะงานที่เปิดเมื่อมีงานหลายพันรายการ
+    if (req.method === 'GET' && req.url === '/api/state') {
       const me = await currentUser(req);
       if (!me) return send(res, 401, { error: 'not_signed_in' });
-      const { rows } = await pool.query(`
-        select t.id, t.type, t.subject, t.priority, t.status, t.created_at,
-               c.name as customer, u.name as assignee
-        from tickets t
-        join customers c on c.id = t.customer_id
-        left join users u on u.id = t.assignee_id
-        where ($1 = 'all')
-           or ($1 = 'technician' and t.assignee_id = $2)
-           or ($1 = 'customer' and t.customer_id = $3)
-        order by case t.priority when 'urgent' then 0 when 'high' then 1 when 'medium' then 2 else 3 end, t.created_at desc
-        limit 50`, [scopeOf(me), me.id, me.customer_id]);
-      return send(res, 200, rows);
-    }
-    // รายชื่อบริษัทลูกค้า: ให้หัวหน้าทีม/ผู้ดูแลเลือกตอนเปิดงานแทนลูกค้า
-    if (req.method === 'GET' && req.url === '/api/customers') {
-      const me = await currentUser(req);
-      if (!me) return send(res, 401, { error: 'not_signed_in' });
-      if (!isManager(me)) return send(res, 403, { error: 'forbidden' });
-      const { rows } = await pool.query('select id, name from customers order by name');
-      return send(res, 200, rows);
+      const staff = isStaff(me);
+      const { rows: tks } = await pool.query(`
+        select * from tickets t
+        where ($1 = 'all') or ($1 = 'technician' and t.assignee_id = $2) or ($1 = 'customer' and t.customer_id = $3)
+        order by t.created_at desc`, [scopeOf(me), me.id, me.customer_id]);
+      const ids = tks.map(t => t.id);
+      const [hist, cmts, wls, reps, us, cs, ss] = await Promise.all([
+        pool.query('select ticket_id, from_status, to_status, by_user, reason, at from ticket_history where ticket_id = any($1) order by at, id', [ids]),
+        // ลูกค้าเห็นเฉพาะความเห็นสาธารณะ และไม่เห็น work log (ข้อมูลภายใน)
+        pool.query(`select ticket_id, by_user, vis, text, at from comments where ticket_id = any($1) ${staff ? '' : "and vis = 'public'"} order by at, id`, [ids]),
+        staff ? pool.query('select ticket_id, by_user, text, at from worklogs where ticket_id = any($1) order by at, id', [ids]) : { rows: [] },
+        pool.query(`select r.ticket_id, r.no, r.summary, r.parts, r.hours, r.by_user, r.at,
+                           s.name as s_name, s.position as s_position, s.via as s_via, s.by_user as s_by, s.at as s_at, s.signature,
+                           rt.score, rt.comment as r_comment, rt.by_user as r_by, rt.via as r_via, rt.at as r_at
+                    from reports r left join signoffs s on s.ticket_id = r.ticket_id left join ratings rt on rt.ticket_id = r.ticket_id
+                    where r.ticket_id = any($1)`, [ids]),
+        pool.query('select id, name, role, team, phone, email, customer_id, site_id, approver, skills, removed from users order by name'),
+        pool.query('select id, name, contract, contact, phone, email from customers order by name'),
+        pool.query('select id, customer_id, name, address, contact, phone, lat, lng from sites order by id'),
+      ]);
+      const by = (rows, k = 'ticket_id') => rows.reduce((m, r) => ((m[r[k]] ||= []).push(r), m), {});
+      const H = by(hist.rows), C = by(cmts.rows), W = by(wls.rows), R = Object.fromEntries(reps.rows.map(r => [r.ticket_id, r]));
+      const tickets = tks.map(t => {
+        const r = R[t.id], history = (H[t.id] ?? []).map(h => ({ from: h.from_status, to: h.to_status, by: h.by_user, at: h.at, reason: h.reason }));
+        return {
+          id: t.id, type: t.type, customer: t.customer_id, siteId: t.site_id, location: t.location ?? '', subject: t.subject,
+          category: t.category, priority: t.priority, status: t.status, assignee: t.assignee_id, version: t.version, missionId: null, photos: [],
+          history, comments: (C[t.id] ?? []).map(c => ({ by: c.by_user, vis: c.vis, text: c.text, at: c.at })),
+          worklogs: (W[t.id] ?? []).map(w => ({ by: w.by_user, text: w.text, at: w.at, photos: [] })),
+          report: r ? {
+            no: r.no, summary: r.summary, parts: r.parts, hours: Number(r.hours), by: r.by_user, at: r.at, photos: [],
+            signoff: r.s_via ? { name: r.s_name, position: r.s_position ?? '', via: r.s_via, by: r.s_by, at: r.s_at, sig: r.signature } : null,
+            // ปิดงานโดยไม่มีลายเซ็น: เหตุผลอยู่ในประวัติการเปลี่ยนสถานะครั้งล่าสุด
+            closedNoSign: !r.s_via && t.status === 'closed' ? history.findLast(h => h.to === 'closed')?.reason ?? '' : undefined,
+          } : null,
+          rating: r?.score != null ? { score: r.score, comment: r.r_comment, by: r.r_by, via: r.r_via, at: r.r_at } : null,
+        };
+      });
+      // บริษัทที่เห็นได้: หัวหน้าทีม/ผู้ดูแลเห็นทั้งหมด · ช่างเห็นเฉพาะที่มีงานของตัวเอง · ลูกค้าเห็นบริษัทตัวเอง
+      const seeCust = new Set(isManager(me) ? cs.rows.map(c => c.id) : me.role === 'customer' ? [me.customer_id] : tks.map(t => t.customer_id));
+      const sites = by(ss.rows.filter(s => seeCust.has(s.customer_id)), 'customer_id');
+      const customers = Object.fromEntries(cs.rows.filter(c => seeCust.has(c.id)).map(c => [c.id, {
+        id: c.id, name: c.name, contract: c.contract, contact: c.contact ?? '', phone: c.phone ?? '', email: c.email ?? '',
+        sites: (sites[c.id] ?? []).map(s => ({ id: s.id, name: s.name, address: s.address, contact: s.contact ?? '', phone: s.phone ?? '', lat: s.lat, lng: s.lng })),
+      }]));
+      // ข้อมูลติดต่อเต็ม: หัวหน้าทีม/ผู้ดูแลเห็นทุกคน · ช่างเห็นทีมงาน · ลูกค้าเห็นคนในบริษัทตัวเอง · คนอื่นเห็นแค่ชื่อ (ลูกค้าบริษัทอื่นไม่เห็นเลย)
+      const users = {};
+      for (const u of us.rows) {
+        const full = isManager(me) || (me.role === 'technician' && u.role !== 'customer') || (me.role === 'customer' && u.customer_id === me.customer_id);
+        if (!full && u.role === 'customer' && !seeCust.has(u.customer_id)) continue;
+        users[u.id] = full
+          ? { id: u.id, name: u.name, role: u.role, team: u.team, phone: u.phone ?? '', email: u.email ?? '', customer: u.customer_id, siteId: u.site_id, approver: u.approver, skills: u.skills, removed: u.removed }
+          : { id: u.id, name: u.name, role: u.role, team: u.team, customer: u.customer_id, skills: [], removed: u.removed };
+      }
+      // บันทึกตรวจสอบ: หัวหน้าทีม/ผู้ดูแลเท่านั้น (ล่าสุด 300 รายการ)
+      const auditRows = isManager(me) ? (await pool.query('select at, actor_name as actor, role, action, detail from audit_log order by at desc, id desc limit 300')).rows : [];
+      return send(res, 200, { me: me.id, users, customers, tickets, audit: auditRows });
     }
     if (req.method === 'POST' && req.url === '/api/tickets') {
       const me = await currentUser(req);
@@ -148,7 +192,8 @@ http.createServer(async (req, res) => {
         // ลูกค้าเล่าปัญหาช่องเดียว: บรรทัดแรกเป็นหัวข้อ ทีมงานแก้หมวดทีหลังได้ · ร้องเรียนให้ความสำคัญสูงเสมอ
         if (!desc) return send(res, 400, { error: 'invalid_text' });
         const first = desc.split('\n')[0].trim();
-        t = { type, customerId: me.customer_id, location: null, category: 'other',
+        // หมวดที่หน้าเว็บเดาจากข้อความ (ไม่ถูกก็ใช้ "อื่น ๆ")
+        t = { type, customerId: me.customer_id, location: null, category: CATEGORIES.includes(b.category) && type === 'service' ? b.category : 'other',
           subject: first.length > 60 ? `${first.slice(0, 57)}…` : first,
           priority: type === 'complaint' ? 'high' : b.urgent === true ? 'urgent' : 'medium' };
       } else {
@@ -158,69 +203,27 @@ http.createServer(async (req, res) => {
         if (!CATEGORIES.includes(t.category)) return send(res, 400, { error: 'invalid_category' });
         if (!PRIORITIES.includes(t.priority)) return send(res, 400, { error: 'invalid_priority' });
       }
+      t.siteId = b.siteId ? String(b.siteId) : null;
       try {
         const id = await inTx(async c => {
+          // สถานที่ต้องเป็นของบริษัทเดียวกับงาน
+          if (t.siteId && !(await c.query('select 1 from sites where id = $1 and customer_id = $2', [t.siteId, t.customerId])).rowCount) return null;
           // ล็อกสั้น ๆ กันสองคนได้เลขงานเดียวกัน (ผู้ใช้ของแอปสร้าง sequence เองไม่ได้)
           await c.query("select pg_advisory_xact_lock(hashtext('ticket_id'))");
           const { rows: [{ n }] } = await c.query("select coalesce(max(substr(id, 3)::bigint), 1000) + 1 as n from tickets");
           const tid = `T-${n}`;
-          await c.query(`insert into tickets (id, type, customer_id, location, subject, category, priority, status)
-                         values ($1, $2, $3, $4, $5, $6, $7, 'new')`, [tid, t.type, t.customerId, t.location, t.subject, t.category, t.priority]);
+          await c.query(`insert into tickets (id, type, customer_id, site_id, location, subject, category, priority, status)
+                         values ($1, $2, $3, $4, $5, $6, $7, $8, 'new')`, [tid, t.type, t.customerId, t.siteId, t.location, t.subject, t.category, t.priority]);
           await c.query("insert into ticket_history (ticket_id, from_status, to_status, by_user) values ($1, null, 'new', $2)", [tid, me.id]);
           if (desc) await c.query("insert into comments (ticket_id, by_user, vis, text) values ($1, $2, 'public', $3)", [tid, me.id, desc]);
-          await c.query('insert into audit_log (actor_name, role, action, detail) values ($1, $2, $3, $4)',
-            [me.name, me.role, `เปิดงาน ${tid}`, t.subject]);
+          await audit(c, me, `เปิดงาน ${tid}`, t.subject);
           return tid;
         });
-        return send(res, 200, { id });
+        return id ? send(res, 200, { id }) : send(res, 400, { error: 'invalid_site' });
       } catch (err) {
         if (err.code === '23503') return send(res, 400, { error: 'invalid_company' });   // บริษัทไม่มีอยู่จริง
         throw err;
       }
-    }
-    if (req.method === 'GET' && req.url.startsWith('/api/tickets/')) {
-      const me = await currentUser(req);
-      if (!me) return send(res, 401, { error: 'not_signed_in' });
-      const id = decodeURIComponent(req.url.slice('/api/tickets/'.length));
-      if (!/^T-\d{1,10}$/.test(id)) return send(res, 400, { error: 'invalid_ticket' });
-      // กติกาเดียวกับหน้าหลัก: ไม่มีสิทธิ์ = 404 (ไม่บอกว่างานนั้นมีอยู่จริง)
-      const { rows: [t] } = await pool.query(`
-        select t.id, t.type, t.subject, t.category, t.priority, t.status, t.location, t.created_at,
-               t.assignee_id, c.name as customer, s.name as site, u.name as assignee
-        from tickets t
-        join customers c on c.id = t.customer_id
-        left join sites s on s.id = t.site_id
-        left join users u on u.id = t.assignee_id
-        where t.id = $1 and (($2 = 'all')
-           or ($2 = 'technician' and t.assignee_id = $3)
-           or ($2 = 'customer' and t.customer_id = $4))`, [id, scopeOf(me), me.id, me.customer_id]);
-      if (!t) return send(res, 404, { error: 'not_found' });
-      // ลูกค้าเห็นเฉพาะความเห็นสาธารณะ และไม่เห็น work log (ข้อมูลภายใน)
-      const staff = isStaff(me);
-      const [history, comments, worklogs, techs] = await Promise.all([
-        pool.query(`select h.from_status, h.to_status, h.reason, h.at, u.name as by
-                    from ticket_history h left join users u on u.id = h.by_user
-                    where h.ticket_id = $1 order by h.at, h.id`, [id]),
-        pool.query(`select c.vis, c.text, c.at, u.name as by
-                    from comments c left join users u on u.id = c.by_user
-                    where c.ticket_id = $1 ${staff ? '' : "and c.vis = 'public'"} order by c.at, c.id`, [id]),
-        staff ? pool.query(`select w.text, cardinality(w.photo_ids) as photos, w.at, u.name as by
-                            from worklogs w left join users u on u.id = w.by_user
-                            where w.ticket_id = $1 order by w.at, w.id`, [id]) : { rows: [] },
-        pool.query(`select id, name, team from users where role = 'technician' and removed = false order by name`),
-      ]);
-      const { rows: [rep] } = await pool.query(`
-        select r.no, r.summary, r.parts, r.hours, r.at,
-               s.name as sign_name, s.position as sign_position, s.via as sign_via, s.at as sign_at, s.signature,
-               rt.score as rating_score, rt.comment as rating_comment
-        from reports r
-        left join signoffs s on s.ticket_id = r.ticket_id
-        left join ratings rt on rt.ticket_id = r.ticket_id
-        where r.ticket_id = $1`, [id]);
-      const sState = { report: !!rep, signed: rep?.sign_via ? { via: rep.sign_via, at: rep.sign_at } : null, rated: rep?.rating_score != null };
-      const actions = actionsFor(me, t, sState);
-      const assignable = actions.assign ? techs.rows.filter(x => canAssignTech(me, x)) : [];
-      return send(res, 200, { ticket: t, actions, assignable, report: rep ?? null, history: history.rows, comments: comments.rows, worklogs: worklogs.rows });
     }
     // การกระทำกับงาน: ตรวจสิทธิ์ทุกครั้งที่ server
     const act = req.method === 'POST' ? req.url.match(/^\/api\/tickets\/(T-\d{1,10})\/(status|assign|comments|worklog|resolve|signoff|rating)$/) : null;
@@ -238,13 +241,17 @@ http.createServer(async (req, res) => {
         const to = String(body.to ?? '');
         // ทำเสร็จต้องมีใบรายงาน ใช้ /resolve เท่านั้น
         if (to === 'resolved') return send(res, 400, { error: 'use_resolve' });
-        if (!canTransition(me, t, to)) return send(res, 403, { error: 'forbidden' });
+        const reject = to === 'in_progress' && canReject(me, t);
+        if (!canTransition(me, t, to) && !reject) return send(res, 403, { error: 'forbidden' });
+        if (reject && !reason) return send(res, 400, { error: 'invalid_text' });   // ลูกค้าต้องบอกว่ายังพบปัญหาอะไร
         const done = await inTx(async c => {
           // เงื่อนไข status เดิมกันคนสองคนเปลี่ยนสถานะพร้อมกัน
           const r = await c.query('update tickets set status = $2, version = version + 1 where id = $1 and status = $3', [id, to, t.status]);
           if (r.rowCount === 0) return false;
+          if (reject) await c.query("insert into comments (ticket_id, by_user, vis, text) values ($1, $2, 'public', $3)", [id, me.id, `ยังไม่เรียบร้อย: ${reason}`]);
           await c.query('insert into ticket_history (ticket_id, from_status, to_status, by_user, reason) values ($1, $2, $3, $4, $5)',
-            [id, t.status, to, me.id, reason]);
+            [id, t.status, to, me.id, reject ? `ลูกค้าแจ้งว่ายังไม่เรียบร้อย: ${reason}` : reason]);
+          await audit(c, me, reject ? `ลูกค้าส่งงานกลับ ${id}` : `เปลี่ยนสถานะ ${id}`, `→ ${STATUS_TH[to]}${reason ? ` · ${reason}` : ''}`);
           return true;
         });
         return done ? send(res, 200, { ok: true }) : send(res, 409, { error: 'status_changed' });
@@ -261,6 +268,7 @@ http.createServer(async (req, res) => {
           if (r.rowCount === 0) return false;
           await c.query('insert into ticket_history (ticket_id, from_status, to_status, by_user, reason) values ($1, $2, $3, $4, $5)',
             [id, t.status, t.status === 'new' ? 'assigned' : t.status, me.id, `มอบหมายให้ ${tech.name}`]);
+          await audit(c, me, `มอบหมาย ${id}`, `→ ${tech.name}`);
           return true;
         });
         return done ? send(res, 200, { ok: true }) : send(res, 409, { error: 'status_changed' });
@@ -284,6 +292,7 @@ http.createServer(async (req, res) => {
                            hours = excluded.hours, by_user = excluded.by_user, at = now()`, [id, summary, parts, hours, me.id]);
           await c.query('insert into ticket_history (ticket_id, from_status, to_status, by_user, reason) values ($1, $2, $3, $4, $5)',
             [id, t.status, 'resolved', me.id, summary.slice(0, 500)]);
+          await audit(c, me, `ออกใบรายงาน ${id}`, '→ รอลูกค้าเซ็นรับ');
           return true;
         });
         return done ? send(res, 200, { ok: true }) : send(res, 409, { error: 'status_changed' });
@@ -308,6 +317,7 @@ http.createServer(async (req, res) => {
             [id, name, position, via, me.id, sig]);
           await c.query('insert into ticket_history (ticket_id, from_status, to_status, by_user, reason) values ($1, $2, $3, $4, $5)',
             [id, 'resolved', 'closed', me.id, `${label} (${name})`]);
+          await audit(c, me, `${label} ${id}`, name);
           return true;
         });
         return done ? send(res, 200, { ok: true }) : send(res, 409, { error: 'status_changed' });
@@ -345,69 +355,133 @@ http.createServer(async (req, res) => {
         return send(res, 200, { ok: true });
       }
     }
-    // จัดการบัญชี (เฉพาะผู้ดูแลระบบ): GET /api/users = รายการ · POST /api/users = เพิ่ม · POST /api/users/:id = แก้ไข
-    const userUrl = req.url === '/api/users' ? [] : req.url.match(/^\/api\/users\/([\w-]{1,40})$/);
+    // บัญชีผู้ใช้: POST /api/users = เพิ่ม · POST /api/users/:id = แก้ไข/ปิดบัญชี
+    // ผู้ดูแลจัดการได้ทุกบทบาท · หัวหน้าทีมจัดการได้เฉพาะช่าง (หน้าทีมช่าง)
+    const userUrl = req.method === 'POST' && (req.url === '/api/users' ? [] : req.url.match(/^\/api\/users\/([\w-]{1,40})$/));
     if (userUrl) {
       const me = await currentUser(req);
       if (!me) return send(res, 401, { error: 'not_signed_in' });
-      if (me.role !== 'admin') return send(res, 403, { error: 'forbidden' });
+      if (me.role !== 'admin' && !canManageTeam(me)) return send(res, 403, { error: 'forbidden' });
       const id = userUrl[1];
-      if (req.method === 'GET' && !id) {
-        const [users, customers] = await Promise.all([
-          pool.query(`select u.id, u.name, u.role, u.email, u.team, u.customer_id, u.approver, u.removed, c.name as customer
-                      from users u left join customers c on c.id = u.customer_id order by u.removed, u.role, u.name`),
-          pool.query('select id, name from customers order by name'),
-        ]);
-        return send(res, 200, { users: users.rows, customers: customers.rows });
-      }
-      if (req.method !== 'POST') return send(res, 404, { error: 'not_found' });
       const b = await readJson(req);
       const name = String(b.name ?? '').trim();
       const email = String(b.email ?? '').trim().toLowerCase();
       const role = String(b.role ?? '');
       const password = String(b.password ?? '');
-      const newCompany = role === 'customer' ? String(b.newCompany ?? '').trim() : '';
-      let customerId = role === 'customer' ? String(b.customerId ?? '') : null;
-      const team = role === 'technician' || role === 'team_leader' ? String(b.team ?? '').trim().slice(0, 20) || null : null;
+      const phone = String(b.phone ?? '').replace(/[\s-]/g, '');
+      const customerId = role === 'customer' ? String(b.customerId ?? '') : null;
+      const siteId = role === 'customer' && b.siteId ? String(b.siteId) : null;
+      const isTech = role === 'technician';
+      // หัวหน้าทีมเพิ่มช่างได้เฉพาะเข้าทีมตัวเอง
+      const team = isTech || role === 'team_leader' ? (me.role === 'admin' ? String(b.team ?? '').trim().slice(0, 20) : me.team) || 'T1' : null;
+      const skills = isTech && Array.isArray(b.skills) ? [...new Set(b.skills.filter(k => CATEGORIES.includes(k)))] : [];
       const approver = role === 'customer' && b.approver === true;   // ตัวแทนบริษัท: อนุมัติพนักงานของบริษัทตัวเองได้
       const removed = b.removed === true;
+      if (me.role !== 'admin' && !isTech) return send(res, 403, { error: 'forbidden' });
       if (!name || name.length > 100) return send(res, 400, { error: 'invalid_name' });
       if (email.length > 100 || !EMAIL.test(email)) return send(res, 400, { error: 'invalid_email' });
+      if (phone && !/^\+?\d{9,15}$/.test(phone)) return send(res, 400, { error: 'invalid_phone' });
       if (!ROLES.includes(role)) return send(res, 400, { error: 'invalid_role' });
       // บัญชีใหม่ต้องมีรหัส · บัญชีเดิมเว้นว่าง = ใช้รหัสเดิม (ยาวสุด 200 ตามที่หน้าเข้าสู่ระบบรับ)
       if ((!id || password) && (password.length < 8 || password.length > 200)) return send(res, 400, { error: 'invalid_new_password' });
-      if (role === 'customer' && !newCompany && !customerId) return send(res, 400, { error: 'invalid_company' });
-      if (newCompany.length > 100) return send(res, 400, { error: 'invalid_company' });
+      if (role === 'customer' && !customerId) return send(res, 400, { error: 'invalid_company' });
       // กันผู้ดูแลล็อกตัวเองออก — จึงมีผู้ดูแลเหลืออย่างน้อย 1 คนเสมอ
-      if (id === me.id && (role !== 'admin' || removed)) return send(res, 400, { error: 'self_lockout' });
+      if (id === me.id && (role !== me.role || removed)) return send(res, 400, { error: 'self_lockout' });
       try {
         const saved = await inTx(async c => {
-          if (newCompany) {
-            customerId = `C${randomBytes(4).toString('hex')}`;
-            await c.query('insert into customers (id, name) values ($1, $2)', [customerId, newCompany]);
+          if (siteId && !(await c.query('select 1 from sites where id = $1 and customer_id = $2', [siteId, customerId])).rowCount) return 'invalid_site';
+          if (id && me.role !== 'admin') {
+            // หัวหน้าทีมแก้ได้เฉพาะบัญชีที่เป็นช่างอยู่แล้ว
+            const { rows: [x] } = await c.query('select role from users where id = $1', [id]);
+            if (x?.role !== 'technician') return 'forbidden';
           }
           const hash = password ? await hashPassword(password) : null;
-          let uid = id;
           if (id) {
-            const r = await c.query(`update users set name = $2, email = $3, role = $4, team = $5, customer_id = $6, approver = $7,
-                                       removed = $8, password_hash = coalesce($9, password_hash) where id = $1`,
-              [id, name, email, role, team, customerId, approver, removed, hash]);
-            if (!r.rowCount) return false;
+            const r = await c.query(`update users set name = $2, email = $3, role = $4, team = $5, customer_id = $6, site_id = $7, approver = $8,
+                                       removed = $9, phone = $10, skills = $11, password_hash = coalesce($12, password_hash) where id = $1`,
+              [id, name, email, role, team, customerId, siteId, approver, removed, phone || null, skills, hash]);
+            if (!r.rowCount) return 'not_found';
             // ตั้งรหัสใหม่ = ออกจากระบบทุกเครื่องของคนนั้น (ยกเว้นเครื่องที่กำลังใช้อยู่)
             if (hash) await c.query('delete from sessions where user_id = $1 and token_hash <> $2', [id, hashToken(sessionToken(req))]);
           } else {
-            uid = `u${randomBytes(4).toString('hex')}`;
-            await c.query(`insert into users (id, name, email, role, team, customer_id, approver, password_hash)
-                           values ($1, $2, $3, $4, $5, $6, $7, $8)`, [uid, name, email, role, team, customerId, approver, hash]);
+            await c.query(`insert into users (id, name, email, role, team, customer_id, site_id, approver, phone, skills, password_hash)
+                           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+              [`u${randomBytes(4).toString('hex')}`, name, email, role, team, customerId, siteId, approver, phone || null, skills, hash]);
           }
-          await c.query('insert into audit_log (actor_name, role, action, detail) values ($1, $2, $3, $4)',
-            [me.name, me.role, id ? (removed ? 'ปิดบัญชี' : 'แก้ไขบัญชี') : 'เพิ่มบัญชี', `${email} (${role})${hash && id ? ' ตั้งรหัสใหม่' : ''}`]);
-          return true;
+          await audit(c, me, id ? (removed ? 'ปิดบัญชี' : 'แก้ไขบัญชี') : 'เพิ่มบัญชี', `${email} (${role})${hash && id ? ' ตั้งรหัสใหม่' : ''}`);
+          return 'ok';
         });
-        return saved ? send(res, 200, { ok: true }) : send(res, 404, { error: 'not_found' });
+        const code = { ok: 200, not_found: 404, forbidden: 403 }[saved] ?? 400;
+        return send(res, code, saved === 'ok' ? { ok: true } : { error: saved });
       } catch (err) {
         if (err.code === '23505') return send(res, 409, { error: 'email_taken' });       // อีเมลซ้ำ
         if (err.code === '23503') return send(res, 400, { error: 'invalid_company' });   // บริษัทไม่มีอยู่จริง
+        throw err;
+      }
+    }
+    // พาร์ทเนอร์ (บริษัทลูกค้า) และสถานที่ — หัวหน้าทีม/ผู้ดูแล
+    // POST /api/customers = เพิ่ม (พร้อมสถานที่แรก และตัวแทนบริษัทถ้าระบุ) · /api/customers/:id = แก้ไข
+    // POST /api/customers/:id/sites = เพิ่มสถานที่ · /api/customers/:id/sites/:sid = แก้ไขสถานที่
+    const custUrl = req.method === 'POST' && req.url.match(/^\/api\/customers(?:\/([\w-]{1,40})(?:\/sites(?:\/([\w-]{1,40}))?)?)?$/);
+    if (custUrl) {
+      const me = await currentUser(req);
+      if (!me) return send(res, 401, { error: 'not_signed_in' });
+      if (!canManagePartners(me)) return send(res, 403, { error: 'forbidden' });
+      const [path, cid, sid] = custUrl;
+      const b = await readJson(req);
+      const txt = (v, n = 100) => String(v ?? '').trim().slice(0, n);
+      const siteOf = x => ({ name: txt(x?.name), address: txt(x?.address, 300), contact: txt(x?.contact), phone: txt(x?.phone, 20) });
+      try {
+        const out = await inTx(async c => {
+          if (path.includes('/sites')) {
+            const s = siteOf(b);
+            if (!s.name || !s.address) return 'invalid_site';
+            if (sid) {
+              const r = await c.query('update sites set name = $3, address = $4, contact = $5, phone = $6 where id = $1 and customer_id = $2',
+                [sid, cid, s.name, s.address, s.contact || null, s.phone || null]);
+              if (!r.rowCount) return 'not_found';
+            } else {
+              await c.query('insert into sites (id, customer_id, name, address, contact, phone) values ($1, $2, $3, $4, $5, $6)',
+                [`S${randomBytes(4).toString('hex')}`, cid, s.name, s.address, s.contact || null, s.phone || null]);
+            }
+            await audit(c, me, `${sid ? 'แก้ไข' : 'เพิ่ม'}สถานที่`, s.name);
+            return 'ok';
+          }
+          const d = { name: txt(b.name), contract: ['ma', 'oncall', 'project'].includes(b.contract) ? b.contract : null,
+            contact: txt(b.contact), phone: txt(b.phone, 20), email: txt(b.email) };
+          if (!d.name) return 'invalid_name';
+          let id = cid;
+          if (cid) {
+            const r = await c.query('update customers set name = $2, contract = $3, contact = $4, phone = $5, email = $6 where id = $1',
+              [cid, d.name, d.contract, d.contact || null, d.phone || null, d.email || null]);
+            if (!r.rowCount) return 'not_found';
+          } else {
+            const s = siteOf(b.site);
+            if (!s.name || !s.address) return 'invalid_site';
+            id = `C${randomBytes(4).toString('hex')}`;
+            await c.query('insert into customers (id, name, contract, contact, phone, email) values ($1, $2, $3, $4, $5, $6)',
+              [id, d.name, d.contract, d.contact || null, d.phone || null, d.email || null]);
+            await c.query('insert into sites (id, customer_id, name, address, contact, phone) values ($1, $2, $3, $4, $5, $6)',
+              [`S${randomBytes(4).toString('hex')}`, id, s.name, s.address, d.contact || null, d.phone || null]);
+          }
+          // ตัวแทนบริษัท = บัญชีลูกค้าคนแรกของบริษัท (approver) เข้าระบบด้วยอีเมลและรหัสผ่านเริ่มต้นที่ตั้งให้
+          const rep = txt(b.repEmail).toLowerCase(), repPw = String(b.repPassword ?? '');
+          if (rep) {
+            if (!EMAIL.test(rep)) return 'invalid_email';
+            if (!d.contact) return 'invalid_name';
+            if (repPw.length < 8 || repPw.length > 200) return 'invalid_new_password';
+            const { rows: [s0] } = await c.query('select id from sites where customer_id = $1 order by id limit 1', [id]);
+            await c.query(`insert into users (id, name, email, role, customer_id, site_id, approver, password_hash)
+                           values ($1, $2, $3, 'customer', $4, $5, true, $6)`, [`u${randomBytes(4).toString('hex')}`, d.contact, rep, id, s0?.id ?? null, await hashPassword(repPw)]);
+          }
+          await audit(c, me, cid ? 'แก้ไขพาร์ทเนอร์' : 'เพิ่มพาร์ทเนอร์', d.name + (rep ? ` · ตัวแทน ${rep}` : ''));
+          return { id };
+        });
+        if (typeof out === 'object') return send(res, 200, out);
+        return send(res, out === 'ok' ? 200 : out === 'not_found' ? 404 : 400, out === 'ok' ? { ok: true } : { error: out });
+      } catch (err) {
+        if (err.code === '23505') return send(res, 409, { error: 'email_taken' });
+        if (err.code === '23503') return send(res, 404, { error: 'not_found' });   // บริษัทของสถานที่ไม่มีอยู่จริง
         throw err;
       }
     }

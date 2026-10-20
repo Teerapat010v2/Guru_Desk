@@ -6,13 +6,13 @@
 
 ```
 guru-service-desk/
-├── frontend/      หน้าเว็บ Next.js (App Router, JavaScript) พอร์ต 3000 — ดู frontend/README.md
+├── frontend/      หน้าเว็บ (แอปเดิมใน public/ ต่อฐานข้อมูลจริง) เปิดด้วย Next.js พอร์ต 3000 — ดู frontend/README.md
 ├── backend/       API ต่อ PostgreSQL (Node.js) พอร์ต 4000 — ดู backend/README.md
 │   └── db/schema.sql   โครงสร้างฐานข้อมูล
 └── tools/         สคริปต์บันทึกอัตโนมัติ (autosave.sh)
 ```
 
-แอปเดิมแบบไฟล์นิ่ง (localStorage) ถูกลบออกแล้ว ดูย้อนหลังได้จาก tag `old-static-app`
+หน้าเว็บคือแอปเดิม (หน้าตาเดิมทุกหน้า) ที่ย้ายข้อมูลจาก localStorage มาใช้ฐานข้อมูลจริงผ่าน backend แล้ว — ดูส่วนที่ยังเก็บในเครื่องได้ใน frontend/README.md
 
 ## รันบนเครื่องนี้
 
