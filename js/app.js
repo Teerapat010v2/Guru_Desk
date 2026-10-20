@@ -121,7 +121,6 @@ function applyTheme() {
 function setTheme(t) {
   theme = t; applyTheme();
   try { localStorage.setItem('gitsd-theme', t); } catch { /* ใช้ได้เฉพาะรอบนี้ */ }
-  renderTools();
   if (tab === 'me') renderAll();
 }
 
@@ -375,7 +374,7 @@ function pageHead(title, sub = '', actions = '', opt = {}) {
   return `<header class="phead">
     ${back ? `<button class="ibtn back" onclick="goBack()" aria-label="กลับไปหน้าก่อนหน้า" title="กลับไปหน้าก่อนหน้า">${ic('back', 22, 2)}</button>` : ''}
     <div class="ph-t">${opt.logo ? '<button class="logo-btn" onclick="goHome()" aria-label="กลับหน้าหลัก"><img class="ph-logo" src="img/logo.png" alt="Guru IT Solution" width="96" height="28"></button>' : ''}<h1>${title}</h1>${sub ? `<small>${esc(sub)}</small>` : ''}</div>
-    <div class="ph-a">${actions}<button class="ibtn bell" onclick="openNotifs()" title="การแจ้งเตือน" aria-label="การแจ้งเตือน${unread ? ` ยังไม่อ่าน ${unread}` : ''}">${ic('bell', 22, 1.7)}${unread ? `<b class="tbdg">${unread}</b>` : ''}</button></div></header>`;
+    <div class="ph-a">${actions}${toolBtns()}<button class="ibtn bell" onclick="openNotifs()" title="การแจ้งเตือน" aria-label="การแจ้งเตือน${unread ? ` ยังไม่อ่าน ${unread}` : ''}">${ic('bell', 22, 1.7)}${unread ? `<b class="tbdg">${unread}</b>` : ''}</button></div></header>`;
 }
 const tiles = items => `<div class="tiles">${items.filter(Boolean).map(t => `<button class="tile" onclick="${t.fn}"><i>${ic(t.icon, 26, 1.7)}${t.badge ? `<b class="tbdg">${t.badge}</b>` : ''}</i><span>${t.label}</span>${t.sub ? `<small>${t.sub}</small>` : ''}</button>`).join('')}</div>`;
 function textTabs(items, cur, setter) {
@@ -581,7 +580,7 @@ function renderJoin() {
   if (joinDone) return `<div class="join"><div class="done"><div class="done-ic">${ic('check', 34, 3)}</div><h3>ส่งคำขอแล้ว</h3>
     <p class="hint">ตัวแทนของ ${esc(c.name)} จะยืนยันว่าคุณเป็นพนักงานจริง<br>เมื่ออนุมัติแล้วคุณจะเข้าใช้งานได้ทันที</p></div>
     <div class="row center"><button class="btn link" onclick="leaveJoin()">กลับหน้าเข้าสู่ระบบ</button></div></div>`;
-  return `<div class="join"><img class="ph-logo" src="img/logo.png" alt="Guru IT Solution" width="96" height="28">
+  return `<div class="join"><div class="row end" style="margin:0 0 6px">${toolBtns()}</div><img class="ph-logo" src="img/logo.png" alt="Guru IT Solution" width="96" height="28">
     <h1>สมัครใช้งาน</h1><p class="hint" style="margin:2px 0 0">${esc(c.name)}</p>
     <button type="button" class="join-photo" onclick="$('joinFile').click()"><i>${joinDraft.photo && PHOTOS[joinDraft.photo] ? `<img src="${PHOTOS[joinDraft.photo]}" alt="รูปของคุณ">` : ic('camera', 28, 1.7)}</i>${joinDraft.photo ? 'เปลี่ยนรูป' : 'รูปของคุณ (ไม่บังคับ)'}</button>
     <input type="file" id="joinFile" accept="image/*" hidden onchange="joinPhoto(this)">
@@ -709,7 +708,7 @@ function markAllRead() { myNotifs().forEach(n => { n.read = true; }); closeModal
 // shortcut: เข้าด้วยอีเมลอย่างเดียว ไม่มีรหัสผ่าน/ยืนยันอีเมล (ข้อมูลอยู่ในเครื่องนี้อยู่แล้ว) — มี server เมื่อไรต้องเพิ่มลิงก์/รหัสยืนยันทางอีเมลก่อนเปิดให้ลูกค้าใช้
 /* ครั้งแรกที่ยังไม่มีผู้ใช้เลย: สร้างผู้ดูแลระบบคนแรก */
 function renderSetup() {
-  return `<div class="join"><img class="ph-logo" src="img/logo.png" alt="Guru IT Solution" width="96" height="28">
+  return `<div class="join"><div class="row end" style="margin:0 0 6px">${toolBtns()}</div><img class="ph-logo" src="img/logo.png" alt="Guru IT Solution" width="96" height="28">
     <h1>เริ่มต้นใช้งาน</h1><p class="hint" style="margin:2px 0 0">สร้างบัญชีผู้ดูแลระบบคนแรก</p>
     <label class="fl">ชื่อ <em>*</em><input id="suName" maxlength="60" autocomplete="name"></label>
     ${emailField('suEmail')}
@@ -739,7 +738,7 @@ function setLoginMode(staff) { login = { id: $('lgId')?.value || '', staff }; re
 function renderLogin() {
   if (!Object.keys(users).length) return renderSetup();
   const st = login.staff;
-  return `<div class="join"><img class="ph-logo" src="img/logo.png" alt="Guru IT Solution" width="96" height="28">
+  return `<div class="join"><div class="row end" style="margin:0 0 6px">${toolBtns()}</div><img class="ph-logo" src="img/logo.png" alt="Guru IT Solution" width="96" height="28">
     <h1>${st ? 'เข้าสู่ระบบเจ้าหน้าที่' : 'เข้าสู่ระบบ'}</h1><p class="hint" style="margin:2px 0 0">${st ? 'สำหรับช่าง หัวหน้าทีม และผู้ดูแลระบบ' : 'Guru IT Service Desk · สำหรับลูกค้า'}</p>
       <label class="fl">อีเมลที่ลงทะเบียน<input id="lgId" type="email" inputmode="email" autocomplete="username" maxlength="100" placeholder="name@company.com" value="${esc(login.id)}" onkeydown="if(event.key==='Enter')doLogin()"></label>
       <div class="err" id="lgErr" role="alert"></div>
@@ -1853,14 +1852,13 @@ async function importDb(input) {
 /* เปิดหลายแท็บ: แท็บอื่นบันทึกแล้ว → โหลดใหม่ กันแท็บเก่าเขียนทับข้อมูลใหม่ */
 addEventListener('storage', e => { if (e.key === DB_KEY) location.reload(); });
 
-/* ปุ่มลอยเปลี่ยนภาษา/โหมดสี — มีทุกหน้ารวมหน้าเข้าสู่ระบบ */
-function renderTools() {
-  $('flTools').innerHTML = `<button type="button" class="ftool" onclick="toggleLang()" aria-label="${lang === 'en' ? 'ภาษาไทย' : 'Switch to English'}" title="${lang === 'en' ? 'ภาษาไทย' : 'English'}">${lang === 'en' ? 'ไทย' : 'EN'}</button>
+/* ปุ่มเปลี่ยนภาษา/โหมดสี: อยู่ในแถบหัวของหน้า ไม่ลอยทับเนื้อหา */
+function toolBtns() {
+  return `<button type="button" class="ftool" onclick="toggleLang()" aria-label="${lang === 'en' ? 'ภาษาไทย' : 'Switch to English'}" title="${lang === 'en' ? 'ภาษาไทย' : 'English'}">${lang === 'en' ? 'ไทย' : 'EN'}</button>
     <button type="button" class="ftool" onclick="setTheme(theme === 'dark' ? 'light' : 'dark')" aria-label="${theme === 'dark' ? 'โหมดกลางวัน' : 'โหมดกลางคืน'}" title="${theme === 'dark' ? 'กลางวัน' : 'กลางคืน'}">${ic(theme === 'dark' ? 'sun' : 'moon', 20, 1.8)}</button>`;
 }
 function renderAll() {
   persist();
-  renderTools();
   const u = currentUser;
   $('tabbar').hidden = !!joinCid || !u;
   if (joinCid || !u) { $('shell').className = 'shell joining'; $('fab').hidden = true; $('screen').innerHTML = `<div class="page">${joinCid ? renderJoin() : renderLogin()}</div>`; return; }
