@@ -48,7 +48,7 @@ const EN = {
   'สำหรับช่าง หัวหน้าทีม และผู้ดูแลระบบ': 'For technicians, team leaders and administrators',
   'Guru IT Service Desk · สำหรับลูกค้า': 'Guru IT Service Desk · for customers',
   'อีเมลที่ลงทะเบียน': 'Registered email', 'เข้าสู่ระบบสำหรับช่าง / เจ้าหน้าที่': 'Sign in as technician / staff',
-  'กลับไปเข้าสู่ระบบลูกค้า': 'Back to customer sign-in', 'ยังไม่มีบัญชี?': 'No account yet?',
+  'กลับไปเข้าสู่ระบบลูกค้า': 'Back to customer sign-in', 'กลับไปหน้าเข้าสู่ระบบ': 'Back to sign-in', 'ยังไม่มีบัญชี?': 'No account yet?',
   'เปิดลิงก์สมัครที่ได้จากตัวแทนบริษัท หรือค้นหาบริษัทของคุณ': 'Open the invite link from your company representative, or search for your company',
   'รหัส หรือชื่อบริษัท': 'Company code or name', 'สมัคร': 'Sign up', 'สมัครใช้งาน': 'Sign up',
   'เริ่มต้นใช้งาน': 'Get started', 'สร้างบัญชีผู้ดูแลระบบคนแรก': 'Create the first administrator account',

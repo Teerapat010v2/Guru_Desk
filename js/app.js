@@ -589,7 +589,8 @@ function renderJoin() {
     ${c.sites.length > 1 ? `<label class="fl">ทำงานที่ <em>*</em><select id="jSite">${c.sites.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></label>` : ''}
     <div class="err" id="jErr" role="alert"></div>
     <button class="btn primary block" style="margin-top:18px" onclick="submitJoin()">ส่งคำขอ</button>
-    <p class="hint" style="text-align:center;margin-top:12px">ตัวแทนบริษัทจะยืนยันว่าคุณเป็นพนักงานจริง ก่อนเข้าใช้งาน</p></div>`;
+    <p class="hint" style="text-align:center;margin-top:12px">ตัวแทนบริษัทจะยืนยันว่าคุณเป็นพนักงานจริง ก่อนเข้าใช้งาน</p>
+    <div class="row center"><button class="btn link" onclick="leaveJoin()">${ic('user', 16, 2)}กลับไปหน้าเข้าสู่ระบบ</button></div></div>`;
 }
 async function joinPhoto(input) {
   const f = input.files[0]; input.value = '';
@@ -918,7 +919,7 @@ function projectSheet(id) {
   return [p.name, `<div class="card"><div class="badges"><span class="tag">${CATEGORIES[p.category]?.label || ''}</span><span class="sp"></span><b class="pct big">${pct(p)}%</b></div>
       <h3 class="tk-title">${esc(p.name)}</h3><div class="pbar"><i style="width:${pct(p)}%"></i></div>
       <dl class="facts" style="margin-top:12px"><dt>ลูกค้า</dt><dd>${esc(custName(p.customer))}</dd><dt>สถานที่</dt><dd>${esc(siteById(p.siteId)?.name || '-')}</dd>
-        <dt>ผู้รับผิดชอบ</dt><dd>${esc(nameOf(p.owner))}</dd><dt>กำหนดเสร็จ</dt><dd>${fmtD(p.due)}</dd></dl></div>
+        <dt>ผู้รับผิดชอบ</dt><dd>${isManager(u) ? `<a class="lnk" onclick="openTech('${p.owner}')">${esc(nameOf(p.owner))}</a>` : esc(nameOf(p.owner))}</dd><dt>กำหนดเสร็จ</dt><dd>${fmtD(p.due)}</dd></dl></div>
     ${fold('pj-tasks', 'ขั้นตอนงาน', `<div class="card">${p.tasks.map((x, i) => `<label class="task ${x.done ? 'done' : ''}"><input type="checkbox" ${x.done ? 'checked' : ''} ${edit ? `onchange="toggleTask('${id}',${i})"` : 'disabled'}><span>${esc(x.text)}</span></label>`).join('') || '<p class="hint">ยังไม่มีขั้นตอน</p>'}
       ${edit ? `<div class="cbox" style="margin-top:10px"><input id="newTask" placeholder="เพิ่มขั้นตอน…" maxlength="120" aria-label="ขั้นตอนใหม่" onkeydown="if(event.key==='Enter')addTask('${id}')"><button class="btn primary send" onclick="addTask('${id}')" aria-label="เพิ่มขั้นตอน">${ic('plus', 18, 2.4)}</button></div>` : ''}</div>`,
       { count: `${p.tasks.filter(x => x.done).length}/${p.tasks.length}` })}`];
@@ -1092,7 +1093,7 @@ function ticketSheet(id) {
     <h3 class="tk-title">${esc(tk.subject)}</h3>
     <dl class="facts">
       <dt>ลูกค้า</dt><dd>${isManager(u) ? `<a class="lnk" onclick="openPartner('${tk.customer}')">${esc(custName(tk.customer))}</a>` : esc(custName(tk.customer))}</dd>
-      <dt>ผู้รับผิดชอบ</dt><dd>${tk.assignee ? esc(nameOf(tk.assignee)) : '<span class="prio-urgent">ยังไม่มอบหมาย</span>'}</dd>
+      <dt>ผู้รับผิดชอบ</dt><dd>${tk.assignee ? (isManager(u) ? `<a class="lnk" onclick="openTech('${tk.assignee}')">${esc(nameOf(tk.assignee))}</a>` : esc(nameOf(tk.assignee))) : '<span class="prio-urgent">ยังไม่มอบหมาย</span>'}</dd>
     </dl>
     ${acts.length ? `<div class="row">${acts.map(a => `<button class="btn ${a.primary ? 'primary' : ''}" onclick="${a.fn}">${ic(a.icon, 16, 2)}${a.label}</button>`).join('')}</div>`
       : `<div class="locked" style="margin-top:12px">${ic('info', 18)}<div>${whyNoAction(u, tk)}</div></div>`}
