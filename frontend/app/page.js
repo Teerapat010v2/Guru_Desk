@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
 
 // ข้อความเมื่อ backend ตอบปฏิเสธ (ตรงกับรหัสที่ backend/server.js ส่งกลับ)
 const ERR = {
@@ -15,10 +14,15 @@ const ERR = {
   invalid_assignee: "เลือกช่างที่มอบหมายไม่ได้",
   invalid_text: "ข้อความว่างหรือยาวเกินกำหนด",
   invalid_hours: "จำนวนชั่วโมงไม่ถูกต้อง (0–999)",
-  invalid_name: "กรุณากรอกชื่อผู้ลงนาม",
+  invalid_name: "กรุณากรอกชื่อ (ไม่เกิน 100 ตัว)",
   invalid_signature: "กรุณาเซ็นชื่อในกรอบก่อน",
   invalid_score: "กรุณาเลือกคะแนน 1–5",
   already_rated: "งานนี้ให้คะแนนไปแล้ว",
+  invalid_role: "กรุณาเลือกบทบาท",
+  invalid_new_password: "รหัสผ่านต้องยาว 8–200 ตัว",
+  invalid_company: "กรุณาเลือกบริษัท หรือกรอกชื่อบริษัทใหม่",
+  self_lockout: "เปลี่ยนบทบาทหรือปิดบัญชีของตัวเองไม่ได้",
+  email_taken: "อีเมลนี้มีบัญชีอยู่แล้ว",
 };
 const ROLE = { customer: "ลูกค้า", technician: "ช่างเทคนิค", team_leader: "หัวหน้าทีม", admin: "ผู้ดูแลระบบ" };
 const STATUS = {
@@ -38,6 +42,7 @@ export default function Page() {
   const [user, setUser] = useState(null);
   const [checked, setChecked] = useState(false);
   const [openId, setOpenId] = useState(null);
+  const [view, setView] = useState("home");
 
   // ถ้ามี session อยู่แล้ว (รีเฟรชหน้า) ให้เข้าหน้าหลักเลยโดยไม่ต้องกรอกรหัสใหม่
   useEffect(() => {
@@ -50,10 +55,17 @@ export default function Page() {
 
   if (!checked) return null;
   if (!user) return <SignIn onDone={setUser} />;
-  const logout = () => { setUser(null); setOpenId(null); };
+  // ใช้ทั้งปุ่มออกจากระบบและตอน session หมดอายุ (ลบ session ที่ server ด้วยทุกครั้ง)
+  const logout = () => {
+    fetch("/api/logout", { method: "POST" }).catch(() => {});
+    setUser(null); setOpenId(null); setView("home");
+  };
+  const go = (v) => { setOpenId(null); setView(v); };
+  const nav = <Nav user={user} active={view} onGo={go} onLogout={logout} />;
+  if (view === "users") return <Users nav={nav} me={user} onLogout={logout} />;
   return openId
-    ? <Detail id={openId} user={user} onBack={() => setOpenId(null)} onLogout={logout} />
-    : <Home user={user} onOpen={setOpenId} onLogout={logout} />;
+    ? <Detail id={openId} user={user} nav={nav} onBack={() => setOpenId(null)} onLogout={logout} />
+    : <Home user={user} nav={nav} onOpen={setOpenId} onLogout={logout} />;
 }
 
 function SignIn({ onDone }) {
@@ -121,7 +133,7 @@ function SignIn({ onDone }) {
   );
 }
 
-function Home({ user, onOpen, onLogout }) {
+function Home({ user, nav, onOpen, onLogout }) {
   const [tickets, setTickets] = useState(null);
   const [err, setErr] = useState("");
 
@@ -137,14 +149,9 @@ function Home({ user, onOpen, onLogout }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function logout() {
-    await fetch("/api/logout", { method: "POST" }).catch(() => {});
-    onLogout();
-  }
-
   return (
     <main className="home">
-      <Nav user={user} active="home" onLogout={logout} />
+      {nav}
       <header className="top">
         <div>
           <p className="hint">{ROLE[user.role]}</p>
@@ -172,7 +179,7 @@ function Home({ user, onOpen, onLogout }) {
   );
 }
 
-function Detail({ id, user, onBack, onLogout }) {
+function Detail({ id, user, nav, onBack, onLogout }) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
@@ -215,14 +222,14 @@ function Detail({ id, user, onBack, onLogout }) {
     }
   }
 
-  if (err) return <Shell user={user} onLogout={onLogout} onBack={onBack}><p role="alert" className="err">{err}</p></Shell>;
-  if (!data) return <Shell user={user} onLogout={onLogout} onBack={onBack}><p className="hint">กำลังโหลด…</p></Shell>;
+  if (err) return <Shell nav={nav} onBack={onBack}><p role="alert" className="err">{err}</p></Shell>;
+  if (!data) return <Shell nav={nav} onBack={onBack}><p className="hint">กำลังโหลด…</p></Shell>;
   const t = data.ticket;
   const { transitions, assign, worklog, internalComment, resolve, signoff, rate } = data.actions;
   const rep = data.report;
 
   return (
-    <Shell user={user} onLogout={onLogout} onBack={onBack}>
+    <Shell nav={nav} onBack={onBack}>
       <section className="card">
         <div className="job-head">
           <h1>{t.subject}</h1>
@@ -538,10 +545,16 @@ function TextForm({ label, button, internal, onSend }) {
 }
 
 // เมนูหลักด้านบนของทุกหน้าที่เข้าสู่ระบบแล้ว (เฉพาะหน้าที่แอปนี้มีอยู่จริง)
-function Nav({ user, active, onLogout }) {
+function Nav({ user, active, onGo, onLogout }) {
+  const link = (v, label) => (
+    <button className={`navlink ${active === v ? "on" : ""}`} aria-current={active === v ? "page" : undefined} onClick={() => onGo(v)}>
+      {label}
+    </button>
+  );
   return (
     <nav className="nav" aria-label="เมนูหลัก">
-      <Link className={`navlink ${active === "home" ? "on" : ""}`} href="/" aria-current={active === "home" ? "page" : undefined}>งานของฉัน</Link>
+      {link("home", "งานของฉัน")}
+      {user.role === "admin" && link("users", "จัดการบัญชี")}
       <span className="who">{user.name} · {ROLE[user.role]}</span>
       <button className="ghost" onClick={onLogout}>ออกจากระบบ</button>
     </nav>
@@ -549,14 +562,168 @@ function Nav({ user, active, onLogout }) {
 }
 
 // กรอบของหน้ารายละเอียด: ปุ่มกลับไปรายการงาน
-function Shell({ user, onLogout, onBack, children }) {
+function Shell({ nav, onBack, children }) {
   return (
     <main className="home">
-      <Nav user={user} active="home" onLogout={onLogout} />
+      {nav}
       <header className="top">
         <button className="ghost" onClick={onBack}>← กลับไปงานของคุณ</button>
       </header>
       {children}
     </main>
+  );
+}
+
+// จัดการบัญชี (ผู้ดูแลระบบ): ดูทุกบัญชี เพิ่ม แก้ไข ตั้งรหัสใหม่ ปิดบัญชี — server ตรวจสิทธิ์ซ้ำทุกครั้ง
+const BLANK = { name: "", email: "", role: "customer", team: "", customerId: "", newCompany: "", approver: false, removed: false, password: "" };
+
+function Users({ nav, me, onLogout }) {
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState("");
+  const [edit, setEdit] = useState(null);   // ค่าในฟอร์มที่เปิดอยู่ (null = ไม่ได้เปิด)
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    fetch("/api/users")
+      .then((r) => {
+        if (r.status === 401) return onLogout();
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json().then(setData);
+      })
+      .catch(() => setErr("โหลดรายการบัญชีไม่สำเร็จ ลองใหม่อีกครั้ง"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version]);
+
+  const open = (u) => setEdit({ ...BLANK, ...u, team: u.team ?? "", customerId: u.customer_id ?? "", password: "" });
+
+  return (
+    <main className="home">
+      {nav}
+      <header className="top">
+        <div>
+          <p className="hint">เฉพาะผู้ดูแลระบบ</p>
+          <h1>จัดการบัญชี</h1>
+        </div>
+        {!edit && <button className="ghost" onClick={() => setEdit(BLANK)}>+ เพิ่มบัญชี</button>}
+      </header>
+
+      {edit && data && (
+        <UserForm
+          key={edit.id ?? "new"}
+          init={edit}
+          customers={data.customers}
+          self={edit.id === me.id}
+          onLogout={onLogout}
+          onClose={(saved) => { setEdit(null); if (saved) setVersion((v) => v + 1); }}
+        />
+      )}
+
+      {err && <p role="alert" className="err">{err}</p>}
+      {!err && !data && <p className="hint">กำลังโหลด…</p>}
+      {data && ["customer", "team_leader", "technician", "admin"].map((role) => {
+        const list = data.users.filter((u) => u.role === role);
+        return (
+          <section key={role} className="card">
+            <h2>{ROLE[role]} <span className="hint">{list.length} คน</span></h2>
+            {list.length === 0 && <p className="hint">ยังไม่มี</p>}
+            {list.map((u) => (
+              <button key={u.id} className="job" onClick={() => open(u)} aria-label={`แก้ไข ${u.name}`}>
+                <div className="job-head">
+                  <b>{u.name}{u.id === me.id ? " (คุณ)" : ""}</b>
+                  {u.removed ? <span className="prio">ปิดบัญชี</span> : u.approver && <span className="prio">ตัวแทนบริษัท</span>}
+                </div>
+                <p className="hint">{[u.email, u.customer, u.team && `ทีม ${u.team}`].filter(Boolean).join(" · ")}</p>
+              </button>
+            ))}
+          </section>
+        );
+      })}
+    </main>
+  );
+}
+
+function UserForm({ init, customers, self, onLogout, onClose }) {
+  const [f, setF] = useState(init);
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
+  // ยังไม่มีบริษัทเลย = ต้องกรอกบริษัทใหม่
+  const company = f.customerId || customers[0]?.id || "new";
+
+  async function save(e) {
+    e.preventDefault();
+    setBusy(true);
+    setMsg("");
+    try {
+      const r = await fetch(f.id ? `/api/users/${encodeURIComponent(f.id)}` : "/api/users", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: f.name, email: f.email, role: f.role, team: f.team, approver: f.approver, removed: f.removed, password: f.password,
+          customerId: company === "new" ? "" : company,
+          newCompany: company === "new" ? f.newCompany : "",
+        }),
+      });
+      if (r.status === 401) return onLogout();
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        return setMsg(ERR[d.error] ?? "บันทึกไม่สำเร็จ");
+      }
+      onClose(true);
+    } catch {
+      setMsg("ติดต่อเซิร์ฟเวอร์ไม่ได้");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="card form" onSubmit={save}>
+      <h2>{f.id ? `แก้ไขบัญชี ${init.name}` : "เพิ่มบัญชี"}</h2>
+      <label>ชื่อ-นามสกุล<input value={f.name} onChange={set("name")} maxLength={100} required /></label>
+      <label>อีเมล (ใช้เข้าสู่ระบบ)<input type="email" value={f.email} onChange={set("email")} maxLength={100} autoComplete="off" required /></label>
+      <label>
+        บทบาท
+        <select value={f.role} onChange={set("role")} disabled={self}>
+          {Object.entries(ROLE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+      </label>
+      {f.role === "customer" && (
+        <>
+          <label>
+            บริษัท
+            <select value={company} onChange={set("customerId")}>
+              {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              <option value="new">+ บริษัทใหม่</option>
+            </select>
+          </label>
+          {company === "new" && (
+            <label>ชื่อบริษัทใหม่<input value={f.newCompany} onChange={set("newCompany")} maxLength={100} required /></label>
+          )}
+          <label className="check">
+            <input type="checkbox" checked={f.approver} onChange={set("approver")} />
+            ตัวแทนบริษัท (หัวหน้าฝั่งลูกค้า อนุมัติพนักงานของบริษัทได้)
+          </label>
+        </>
+      )}
+      {(f.role === "technician" || f.role === "team_leader") && (
+        <label>ทีม (เช่น T1 — หัวหน้าทีมมอบหมายงานได้เฉพาะช่างทีมเดียวกัน)<input value={f.team} onChange={set("team")} maxLength={20} /></label>
+      )}
+      <label>
+        {f.id ? "ตั้งรหัสผ่านใหม่ (เว้นว่าง = ใช้รหัสเดิม)" : "รหัสผ่านเริ่มต้น (อย่างน้อย 8 ตัว แจ้งเจ้าของบัญชีเอง)"}
+        <input type="password" value={f.password} onChange={set("password")} minLength={8} maxLength={200} autoComplete="new-password" required={!f.id} />
+      </label>
+      {f.id && !self && (
+        <label className="check">
+          <input type="checkbox" checked={f.removed} onChange={set("removed")} />
+          ปิดบัญชี (เข้าระบบไม่ได้ ประวัติงานยังอยู่ครบ)
+        </label>
+      )}
+      {msg && <p role="alert" className="err">{msg}</p>}
+      <div className="btns">
+        <button type="submit" disabled={busy}>{busy ? "กำลังบันทึก…" : "บันทึก"}</button>
+        <button type="button" className="ghost" onClick={() => onClose(false)}>ยกเลิก</button>
+      </div>
+    </form>
   );
 }

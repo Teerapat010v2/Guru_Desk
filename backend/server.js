@@ -1,5 +1,6 @@
 // API ของ Guru IT Service Desk — ต่อ PostgreSQL (ตาราง users, sessions ใน db/schema.sql)
 import http from 'node:http';
+import { randomBytes } from 'node:crypto';
 import pg from 'pg';
 import { hashPassword, verifyPassword, hashToken, newToken } from './auth.js';
 import { isStaff, isManager, canTransition, canAssign, canAssignTech, canWorklog, canResolve, canSignOff, canRate, actionsFor } from './rules.js';
@@ -7,6 +8,7 @@ import { isStaff, isManager, canTransition, canAssign, canAssignTech, canWorklog
 const port = Number(process.env.PORT || 4000);
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ROLES = ['admin', 'team_leader', 'technician', 'customer'];
 const COOKIE = 'gd_session';
 const SESSION_HOURS = 12;
 // ใช้ตรวจรหัสเมื่อไม่มีบัญชี เพื่อให้เวลาตอบใกล้เคียงกัน (กันเดาว่าอีเมลไหนมีบัญชี)
@@ -288,6 +290,72 @@ http.createServer(async (req, res) => {
         if (!text || text.length > 2000) return send(res, 400, { error: 'invalid_text' });
         await pool.query('insert into worklogs (ticket_id, by_user, text) values ($1, $2, $3)', [id, me.id, text]);
         return send(res, 200, { ok: true });
+      }
+    }
+    // จัดการบัญชี (เฉพาะผู้ดูแลระบบ): GET /api/users = รายการ · POST /api/users = เพิ่ม · POST /api/users/:id = แก้ไข
+    const userUrl = req.url === '/api/users' ? [] : req.url.match(/^\/api\/users\/([\w-]{1,40})$/);
+    if (userUrl) {
+      const me = await currentUser(req);
+      if (!me) return send(res, 401, { error: 'not_signed_in' });
+      if (me.role !== 'admin') return send(res, 403, { error: 'forbidden' });
+      const id = userUrl[1];
+      if (req.method === 'GET' && !id) {
+        const [users, customers] = await Promise.all([
+          pool.query(`select u.id, u.name, u.role, u.email, u.team, u.customer_id, u.approver, u.removed, c.name as customer
+                      from users u left join customers c on c.id = u.customer_id order by u.removed, u.role, u.name`),
+          pool.query('select id, name from customers order by name'),
+        ]);
+        return send(res, 200, { users: users.rows, customers: customers.rows });
+      }
+      if (req.method !== 'POST') return send(res, 404, { error: 'not_found' });
+      const b = await readJson(req);
+      const name = String(b.name ?? '').trim();
+      const email = String(b.email ?? '').trim().toLowerCase();
+      const role = String(b.role ?? '');
+      const password = String(b.password ?? '');
+      const newCompany = role === 'customer' ? String(b.newCompany ?? '').trim() : '';
+      let customerId = role === 'customer' ? String(b.customerId ?? '') : null;
+      const team = role === 'technician' || role === 'team_leader' ? String(b.team ?? '').trim().slice(0, 20) || null : null;
+      const approver = role === 'customer' && b.approver === true;   // ตัวแทนบริษัท: อนุมัติพนักงานของบริษัทตัวเองได้
+      const removed = b.removed === true;
+      if (!name || name.length > 100) return send(res, 400, { error: 'invalid_name' });
+      if (email.length > 100 || !EMAIL.test(email)) return send(res, 400, { error: 'invalid_email' });
+      if (!ROLES.includes(role)) return send(res, 400, { error: 'invalid_role' });
+      // บัญชีใหม่ต้องมีรหัส · บัญชีเดิมเว้นว่าง = ใช้รหัสเดิม (ยาวสุด 200 ตามที่หน้าเข้าสู่ระบบรับ)
+      if ((!id || password) && (password.length < 8 || password.length > 200)) return send(res, 400, { error: 'invalid_new_password' });
+      if (role === 'customer' && !newCompany && !customerId) return send(res, 400, { error: 'invalid_company' });
+      if (newCompany.length > 100) return send(res, 400, { error: 'invalid_company' });
+      // กันผู้ดูแลล็อกตัวเองออก — จึงมีผู้ดูแลเหลืออย่างน้อย 1 คนเสมอ
+      if (id === me.id && (role !== 'admin' || removed)) return send(res, 400, { error: 'self_lockout' });
+      try {
+        const saved = await inTx(async c => {
+          if (newCompany) {
+            customerId = `C${randomBytes(4).toString('hex')}`;
+            await c.query('insert into customers (id, name) values ($1, $2)', [customerId, newCompany]);
+          }
+          const hash = password ? await hashPassword(password) : null;
+          let uid = id;
+          if (id) {
+            const r = await c.query(`update users set name = $2, email = $3, role = $4, team = $5, customer_id = $6, approver = $7,
+                                       removed = $8, password_hash = coalesce($9, password_hash) where id = $1`,
+              [id, name, email, role, team, customerId, approver, removed, hash]);
+            if (!r.rowCount) return false;
+            // ตั้งรหัสใหม่ = ออกจากระบบทุกเครื่องของคนนั้น (ยกเว้นเครื่องที่กำลังใช้อยู่)
+            if (hash) await c.query('delete from sessions where user_id = $1 and token_hash <> $2', [id, hashToken(sessionToken(req))]);
+          } else {
+            uid = `u${randomBytes(4).toString('hex')}`;
+            await c.query(`insert into users (id, name, email, role, team, customer_id, approver, password_hash)
+                           values ($1, $2, $3, $4, $5, $6, $7, $8)`, [uid, name, email, role, team, customerId, approver, hash]);
+          }
+          await c.query('insert into audit_log (actor_name, role, action, detail) values ($1, $2, $3, $4)',
+            [me.name, me.role, id ? (removed ? 'ปิดบัญชี' : 'แก้ไขบัญชี') : 'เพิ่มบัญชี', `${email} (${role})${hash && id ? ' ตั้งรหัสใหม่' : ''}`]);
+          return true;
+        });
+        return saved ? send(res, 200, { ok: true }) : send(res, 404, { error: 'not_found' });
+      } catch (err) {
+        if (err.code === '23505') return send(res, 409, { error: 'email_taken' });       // อีเมลซ้ำ
+        if (err.code === '23503') return send(res, 400, { error: 'invalid_company' });   // บริษัทไม่มีอยู่จริง
+        throw err;
       }
     }
     send(res, 404, { error: 'not_found' });

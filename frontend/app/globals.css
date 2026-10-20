@@ -112,6 +112,10 @@ button.job:hover { background: none; }
 .nav { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
 .navlink { color: var(--text-2); font-size: 15px; padding: 6px 2px; text-decoration: none; border-bottom: 2px solid transparent; min-height: 44px; display: inline-flex; align-items: center; }
 .navlink.on { color: var(--primary); font-weight: 600; border-bottom-color: var(--primary); }
+.card.form { border-top: 0; padding-top: 28px; }
+button.navlink, button.navlink:hover { background: transparent; margin: 0; border-radius: 0; }
+.form .check { flex-direction: row; align-items: center; gap: 10px; min-height: 44px; color: var(--text); }
+.form .check input { width: 20px; height: 20px; padding: 0; flex: 0 0 auto; }
 .nav .who { flex: 1 1 auto; font-size: 13px; color: var(--text-2); text-align: right; min-width: 0; overflow-wrap: anywhere; }
 .nav .ghost { margin: 0; }
 /* มือถือ: ชื่อผู้ใช้อยู่ในหัวหน้าอยู่แล้ว ซ่อนในเมนูเพื่อให้ปุ่มออกจากระบบอยู่บรรทัดเดียวกับเมนู */
