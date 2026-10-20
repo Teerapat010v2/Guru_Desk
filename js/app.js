@@ -1853,7 +1853,7 @@ addEventListener('storage', e => { if (e.key === DB_KEY) location.reload(); });
 
 /* ปุ่มลอยเปลี่ยนภาษา/โหมดสี — มีทุกหน้ารวมหน้าเข้าสู่ระบบ */
 function renderTools() {
-  $('flTools').innerHTML = `<button type="button" class="ftool" onclick="setLang(lang === 'en' ? 'th' : 'en')" aria-label="${lang === 'en' ? 'ภาษาไทย' : 'Switch to English'}" title="${lang === 'en' ? 'ภาษาไทย' : 'English'}">${lang === 'en' ? 'ไทย' : 'EN'}</button>
+  $('flTools').innerHTML = `<button type="button" class="ftool" onclick="toggleLang()" aria-label="${lang === 'en' ? 'ภาษาไทย' : 'Switch to English'}" title="${lang === 'en' ? 'ภาษาไทย' : 'English'}">${lang === 'en' ? 'ไทย' : 'EN'}</button>
     <button type="button" class="ftool" onclick="setTheme(theme === 'dark' ? 'light' : 'dark')" aria-label="${theme === 'dark' ? 'โหมดกลางวัน' : 'โหมดกลางคืน'}" title="${theme === 'dark' ? 'กลางวัน' : 'กลางคืน'}">${ic(theme === 'dark' ? 'sun' : 'moon', 20, 1.8)}</button>`;
 }
 function renderAll() {

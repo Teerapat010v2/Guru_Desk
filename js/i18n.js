@@ -392,6 +392,8 @@ new MutationObserver(ms => {
   }
 }).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
 
+/* ปุ่มสลับภาษา: ต้องเป็นฟังก์ชัน เพราะ onclick ของปุ่มจะเห็นคุณสมบัติ lang ของตัวปุ่มแทนตัวแปร lang */
+function toggleLang() { setLang(lang === 'en' ? 'th' : 'en'); }
 function setLang(v) {
   lang = v === 'en' ? 'en' : 'th';
   try { localStorage.setItem('gitsd-lang', lang); } catch { /* โหมดส่วนตัว */ }
