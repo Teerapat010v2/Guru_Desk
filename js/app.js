@@ -285,7 +285,7 @@ function tabBadge(u, id) {
 function renderTabbar() {
   const list = tabsFor(currentUser);
   if (!screensFor(currentUser).has(tab)) tab = 'home';
-  $('tabbar').innerHTML = `<div class="side-brand"><img src="img/logo.png" alt="Guru IT Solution Co., Ltd." width="140" height="41"><small>Service Desk</small></div>`
+  $('tabbar').innerHTML = `<div class="side-brand"><button class="logo-btn" onclick="goHome()" aria-label="กลับหน้าหลัก"><img src="img/logo.png" alt="Guru IT Solution Co., Ltd." width="140" height="41"></button><small>Service Desk</small></div>`
   + list.map(x => {
     const b = tabBadge(currentUser, x.id);
     return `<button class="tab ${x.id === tab ? 'on' : ''}" onclick="goTab('${x.id}')" ${x.id === tab ? 'aria-current="page"' : ''}>
@@ -307,6 +307,8 @@ function goTab(id, back) {
   tab = id; filter = 'all'; homeTab = null; query = ''; showSearch = false; closeSheet(); renderAll(); $('screen').scrollTo(0, 0);
 }
 function goBack() { goTab(tabStack.at(-1) ?? 'home', true); }
+/* โลโก้: หน้าหลักของผู้ใช้ที่เข้าแล้ว หรือกลับหน้าเข้าสู่ระบบถ้ายังไม่เข้า */
+function goHome() { if (currentUser) goTab('home'); else leaveJoin(); }
 
 /* ---------- การกระทำที่ทำได้กับงาน ---------- */
 function actionLabel(tk, to) {
@@ -372,7 +374,7 @@ function pageHead(title, sub = '', actions = '', opt = {}) {
   const unread = myNotifs().filter(n => !n.read).length;
   return `<header class="phead">
     ${back ? `<button class="ibtn back" onclick="goBack()" aria-label="กลับไปหน้าก่อนหน้า" title="กลับไปหน้าก่อนหน้า">${ic('back', 22, 2)}</button>` : ''}
-    <div class="ph-t">${opt.logo ? '<img class="ph-logo" src="img/logo.png" alt="Guru IT Solution" width="96" height="28">' : ''}<h1>${title}</h1>${sub ? `<small>${esc(sub)}</small>` : ''}</div>
+    <div class="ph-t">${opt.logo ? '<button class="logo-btn" onclick="goHome()" aria-label="กลับหน้าหลัก"><img class="ph-logo" src="img/logo.png" alt="Guru IT Solution" width="96" height="28"></button>' : ''}<h1>${title}</h1>${sub ? `<small>${esc(sub)}</small>` : ''}</div>
     <div class="ph-a">${actions}<button class="ibtn bell" onclick="openNotifs()" title="การแจ้งเตือน" aria-label="การแจ้งเตือน${unread ? ` ยังไม่อ่าน ${unread}` : ''}">${ic('bell', 22, 1.7)}${unread ? `<b class="tbdg">${unread}</b>` : ''}</button></div></header>`;
 }
 const tiles = items => `<div class="tiles">${items.filter(Boolean).map(t => `<button class="tile" onclick="${t.fn}"><i>${ic(t.icon, 26, 1.7)}${t.badge ? `<b class="tbdg">${t.badge}</b>` : ''}</i><span>${t.label}</span>${t.sub ? `<small>${t.sub}</small>` : ''}</button>`).join('')}</div>`;

@@ -57,6 +57,7 @@ a{color:var(--primary)}
 .ph-t h1{margin:0;font-size:26px;font-weight:500;line-height:1.3;letter-spacing:-.2px}
 .ph-t small{display:block;font-size:13px;color:var(--text-2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ph-logo{display:block;width:96px;height:auto;margin-bottom:10px;border-radius:6px}
+.logo-btn{background:none;border:0;padding:0;cursor:pointer;display:block;border-radius:6px}
 :root[data-theme=dark] .ph-logo{background:#fff;padding:3px 6px}
 .ph-a{display:flex;align-items:center;gap:2px;margin-top:2px}
 .ibtn{width:42px;height:42px;border-radius:12px;border:0;background:none;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text);flex:none}
