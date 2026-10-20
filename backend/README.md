@@ -16,7 +16,7 @@ Node.js (ไม่มี framework) ต่อ PostgreSQL ด้วยไลบ�
 1. สร้างไฟล์ `.env` ในโฟลเดอร์นี้ (ไม่ถูก git รับ) มีสองบรรทัด:
    ```
    PG_SUPERUSER_PASSWORD=...
-   DATABASE_URL=postgres://postgres:...@localhost:5433/guru_desk
+   DATABASE_URL=postgres://postgres:...@localhost:5434/guru_desk
    ```
 2. สร้างฐานข้อมูล `guru_desk` แล้วโหลด `db/schema.sql`
 3. สร้างบัญชีผู้ดูแลระบบคนแรก (รหัสต้องยาวอย่างน้อย 8 ตัว ใส่ทาง environment ไม่ใส่ใน argument):
