@@ -91,8 +91,16 @@ a{color:var(--primary)}
 .ttabs button sup{font-size:11px;margin-left:2px;vertical-align:super;color:inherit}
 .ttabs button.on{color:var(--text);font-weight:500}
 .ttabs button.on::after{content:'';position:absolute;left:0;right:0;bottom:0;height:2.5px;border-radius:2px;background:var(--primary)}
-/* มือถือ: แท็บสถานะขึ้นบรรทัดใหม่แทนการเลื่อนซ้ายขวา (แท็บท้ายสุดจะจางหายไป) */
-@media (max-width:959px){.tbar{flex-wrap:wrap}.ttabs{flex-wrap:wrap;overflow:visible;padding-right:0;row-gap:2px;-webkit-mask-image:none;mask-image:none}}
+/* มือถือ: แท็บและชิปเป็นตาราง (จำนวนคอลัมน์ตามความกว้างจอ) ตัวหนังสือปรับตามจอ ไม่ตกบรรทัด */
+@media (max-width:959px){
+  .tbar .sp{display:none}
+  .ttabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));overflow:visible;padding-right:0;row-gap:6px;column-gap:8px;-webkit-mask-image:none;mask-image:none}
+  .ttabs button{font-size:clamp(12px,3.7vw,15px);white-space:nowrap;min-width:0;padding:6px 0}
+  .tchips{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));overflow:visible}
+  .tchips button{font-size:clamp(12px,3.6vw,14px);padding:8px 2px;gap:3px;min-width:0}
+  .tchips button svg{width:15px;height:15px}
+  .ph-t h1{font-size:clamp(20px,6.4vw,26px)}
+}
 .searchbox{margin:0 0 12px;display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid transparent;border-radius:12px;padding:0 12px;color:var(--text-3)}
 .searchbox:focus-within{border-color:var(--primary)}
 .searchbox input{flex:1;border:0;outline:0;font:inherit;font-size:16px;padding:11px 0;background:none;color:var(--text);min-width:0}
