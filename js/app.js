@@ -90,7 +90,7 @@ let sheetStack = [];          // [{t:'ticket'|'partner', id}]
 let tab = 'home';
 let filter = 'all';
 let homeTab = null;
-let jobType = 'service';   // ประเภทงานที่ทีมงานเลือกดู (บริการ / ร้องเรียน / โปรเจกต์)
+let jobType = 'service';   // ประเภทงานที่ทีมงานเลือกดู (บริการ / ร้องเรียน)
 let query = '', showSearch = false;
 let cmtVis = 'public';
 let cmtDraft = '';
@@ -451,8 +451,7 @@ const ofType = (u, arr) => isStaff(u) ? arr.filter(tk => typeOf(tk) === jobType)
 function setJobType(k) { jobType = k; homeTab = null; filter = 'all'; renderAll(); }
 function typeChips(u) {
   const open = k => visibleTickets(u).filter(tk => typeOf(tk) === k && isOpen(tk)).length;
-  const items = [['service', TYPE_LABEL.service, 'tool', open('service')], ['complaint', TYPE_LABEL.complaint, 'alert', open('complaint')],
-    ['project', 'โปรเจกต์', 'folder', projects.filter(p => canSeeProject(u, p) && pct(p) < 100).length]];
+  const items = [['service', TYPE_LABEL.service, 'tool', open('service')], ['complaint', TYPE_LABEL.complaint, 'alert', open('complaint')]];
   return `<div class="tchips" role="tablist" aria-label="ประเภทงาน">${items.map(([k, l, icon, n]) =>
     `<button role="tab" aria-selected="${jobType === k}" class="${jobType === k ? 'on' : ''} ${k === 'complaint' && n ? 'hot' : ''}" onclick="setJobType('${k}')">${ic(icon, 18, 1.9)}${l}${n ? ` <b>${n}</b>` : ''}</button>`).join('')}</div>`;
 }
@@ -473,10 +472,6 @@ function workTabs(u) {
 }
 function setHomeTab(k) { homeTab = k; renderAll(); }
 function workSection(u) {
-  if (isStaff(u) && jobType === 'project') {
-    const pj = projects.filter(p => canSeeProject(u, p) && pct(p) < 100).sort((a, b) => a.due - b.due);
-    return typeChips(u) + (pj.length ? `<div class="list">${pj.map(projCard).join('')}</div>` : empty('ไม่มีโปรเจกต์ที่กำลังทำ', 'folder'));
-  }
   const tabsData = workTabs(u);
   const cur = tabsData.find(t => t.k === homeTab) || tabsData.find(t => t.arr.length) || tabsData[0];
   return `${isStaff(u) ? typeChips(u) : ''}<div class="tbar">${textTabs(tabsData.map(t => [t.k, t.l, t.arr.length]), cur.k, 'setHomeTab')}</div>
@@ -537,13 +532,6 @@ function renderTickets() {
   const u = currentUser;
   const title = { customer: 'งานของฉัน', technician: 'งานของฉัน', team_leader: 'งานทั้งหมด', admin: 'งานทั้งหมด' }[u.role];
   const sub = { customer: custName(u.customer), technician: 'เฉพาะงานที่มอบหมายให้คุณ', team_leader: 'ทุกงานในระบบ', admin: 'ทุกงานในระบบ' }[u.role];
-  /* แท็บโปรเจกต์: แสดงโปรเจกต์ในหน้านี้เลย ไม่เด้งไปหน้าอื่น */
-  if (isStaff(u) && jobType === 'project') {
-    const pj = projects.filter(p => canSeeProject(u, p)), arr = pj.filter(p => (pjFilter === 'done') === (pct(p) === 100)).sort((a, b) => a.due - b.due);
-    return pageHead(title, sub, isManager(u) ? ibtn('plus', 'สร้างโปรเจกต์', 'openProjectForm()') : '') + typeChips(u)
-    + `<div class="tbar">${textTabs([['active', 'กำลังทำ', pj.filter(p => pct(p) < 100).length], ['done', 'เสร็จแล้ว', pj.filter(p => pct(p) === 100).length]], pjFilter, 'setPjFilter')}</div>`
-    + (arr.length ? `<div class="list">${arr.map(projCard).join('')}</div>` : empty('ไม่มีโปรเจกต์', 'folder'));
-  }
   const vis = ofType(u, visibleTickets(u));
   return pageHead(title, sub, ibtn('search', 'ค้นหา', 'toggleSearch()', showSearch))
   + (showSearch ? `<div class="searchbox">${ic('search', 18)}<input id="q" type="search" placeholder="ค้นหาเลขงาน หัวข้อ สถานที่…" value="${esc(query)}" oninput="query=this.value;$('tlist').innerHTML=ticketListHtml()" aria-label="ค้นหางาน"></div>` : '')
