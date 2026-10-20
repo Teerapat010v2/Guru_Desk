@@ -8,7 +8,8 @@ Node.js (ไม่มี framework) ต่อ PostgreSQL ด้วยไลบ�
 - `rules.js` — กติกาสถานะและสิทธิ์ (ตรวจทุกการกระทำฝั่ง server)
 - `auth.js` — แฮชรหัสผ่าน (scrypt) และโทเคนของ session
 - `db/schema.sql` — โครงสร้างตาราง (รวม sessions, password_hash, report_seq)
-- `scripts/set-password.js` — ตั้งรหัสผ่านให้บัญชี
+- `scripts/create-user.js` — สร้างบัญชี (รวมผู้ดูแลระบบคนแรก)
+- `scripts/set-password.js` — เปลี่ยนรหัสผ่านของบัญชีที่มีอยู่
 
 ## ตั้งค่า
 
@@ -18,7 +19,12 @@ Node.js (ไม่มี framework) ต่อ PostgreSQL ด้วยไลบ�
    DATABASE_URL=postgres://postgres:...@localhost:5433/guru_desk
    ```
 2. สร้างฐานข้อมูล `guru_desk` แล้วโหลด `db/schema.sql`
-3. ตั้งรหัสผ่านให้บัญชีที่ต้องใช้ (รหัสต้องยาวอย่างน้อย 8 ตัว):
+3. สร้างบัญชีผู้ดูแลระบบคนแรก (รหัสต้องยาวอย่างน้อย 8 ตัว ใส่ทาง environment ไม่ใส่ใน argument):
+   ```
+   NAME="ชื่อ" EMAIL=you@company.com PASSWORD=... ROLE=admin node --env-file=.env scripts/create-user.js
+   ```
+   `ROLE` เป็น `admin | team_leader | technician | customer` (ลูกค้าต้องมี `CUSTOMER_ID`, ช่างและหัวหน้าทีมใส่ `TEAM` ได้)
+4. เปลี่ยนรหัสผ่านของบัญชีที่มีอยู่:
    ```
    PASSWORD=... node --env-file=.env scripts/set-password.js <email>
    ```
