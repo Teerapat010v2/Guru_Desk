@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# บันทึกทุกการแก้ไขใน D:\ProJect ลงประวัติ (git) อัตโนมัติ
+# บันทึกทุกการแก้ไขในโปรเจค guru-service-desk ลงประวัติ (git) อัตโนมัติ
 # เรียกจาก Stop hook ของ Claude Code (.claude/settings.json) หลังจบแต่ละรอบการทำงาน
 # ไม่มีอะไรเปลี่ยน = ไม่ทำอะไร · ดูประวัติ: git log --oneline · ย้อนไฟล์: git checkout <รหัส> -- <ไฟล์>
 cd "$(dirname "$0")/.." || exit 0
