@@ -466,7 +466,9 @@ http.createServer(async (req, res) => {
     if (userUrl) {
       const me = await currentUser(req);
       if (!me) return send(res, 401, { error: 'not_signed_in' });
-      if (me.role !== 'admin' && !canManageTeam(me)) return send(res, 403, { error: 'forbidden' });
+      // ตัวแทนบริษัท (approver) เพิ่มพนักงานของบริษัทตัวเองได้ทันที — ไม่แก้ไข/ลบ และห้ามเลือกบริษัทอื่น
+      const rep = me.role === 'customer' && !!me.approver && !userUrl[1];
+      if (me.role !== 'admin' && !canManageTeam(me) && !rep) return send(res, 403, { error: 'forbidden' });
       const id = userUrl[1];
       const b = await readJson(req, PHOTO_BODY);
       const name = String(b.name ?? '').trim();
@@ -484,7 +486,8 @@ http.createServer(async (req, res) => {
       const removed = b.removed === true;
       const photos = parsePhotos(b.photo ? [b.photo] : [], 1);
       if (photos === null) return send(res, 400, { error: 'invalid_photo' });
-      if (me.role !== 'admin' && !isTech) return send(res, 403, { error: 'forbidden' });
+      if (rep && (role !== 'customer' || customerId !== me.customer_id || b.approver === true)) return send(res, 403, { error: 'forbidden' });
+      if (me.role !== 'admin' && !isTech && !rep) return send(res, 403, { error: 'forbidden' });
       if (!name || name.length > 100) return send(res, 400, { error: 'invalid_name' });
       if (email.length > 100 || !EMAIL.test(email)) return send(res, 400, { error: 'invalid_email' });
       if (phone && !/^\+?\d{9,15}$/.test(phone)) return send(res, 400, { error: 'invalid_phone' });

@@ -639,6 +639,26 @@ async function decideJoin(id, ok) {
   toast(ok ? 'ยอมรับพนักงานแล้ว — เข้าใช้งานได้ทันที' : 'ปฏิเสธคำขอแล้ว'); renderAll();
 }
 
+// ตัวแทนบริษัทสร้างบัญชีพนักงานของบริษัทตัวเองทันที — server ล็อกให้เป็นลูกค้าของบริษัทนี้เท่านั้น
+function openStaffForm() {
+  if (!canApproveMembers(currentUser, currentUser.customer)) return;
+  openModal(`<div class="mh"><h3>เพิ่มพนักงาน</h3>${xbtn()}</div>
+    <label class="fl">ชื่อ-นามสกุล <em>*</em><input id="stName" maxlength="80"></label>
+    ${emailField('stEmail')}
+    <label class="fl">เบอร์โทร <em>*</em><input id="stPhone" type="tel" inputmode="tel" maxlength="15" placeholder="เช่น 081-234-5678"></label>
+    ${pwField('stPw', true)}
+    <div class="err" id="stErr" role="alert"></div>
+    <div class="row end"><button class="btn" onclick="closeModal()">ยกเลิก</button><button class="btn primary" onclick="saveStaff()">บันทึก</button></div>`);
+  focusLater('stName');
+}
+async function saveStaff() {
+  const name = $('stName').value.trim(), email = normEmail($('stEmail').value), phone = $('stPhone').value.replace(/[\s-]/g, ''), pw = $('stPw').value;
+  const err = !name ? 'กรุณากรอกชื่อ' : !validEmail(email) ? 'อีเมลไม่ถูกต้อง (เช่น name@company.com)' : !validPhone(phone) ? 'เบอร์โทรไม่ถูกต้อง (เช่น 0812345678)' : pwErr(pw, true);
+  if (err) { $('stErr').textContent = err; return; }
+  const me = currentUser;
+  if (!await call('/users', { name, email, phone, role: 'customer', customerId: me.customer, siteId: me.siteId || '', approver: false, password: pw }, 'stErr')) return;
+  closeModal(); toast(`เพิ่ม ${name} แล้ว — เข้าสู่ระบบด้วย ${email}`); renderAll();
+}
 function openInvite() {
   const url = `${location.origin}${location.pathname}?join=${currentUser.customer}`;
   openModal(`<div class="mh"><h3>ชวนพนักงานเข้าใช้งาน</h3>${xbtn()}</div>
@@ -949,7 +969,7 @@ function renderMe() {
     <div class="theme-pick" role="radiogroup" aria-label="ภาษา">${LANGS.map(([k, l]) => `<button role="radio" aria-checked="${lang === k}" class="${lang === k ? 'on' : ''}" onclick="setLang('${k}')"><span class="sw sw-lang">${k.toUpperCase()}</span>${l}</button>`).join('')}</div>
     <button class="srow" onclick="setDense(${!dense})"><i>${ic(dense ? 'rows' : 'cards', 20, 1.8)}</i><span>มุมมองรายการ<small>${dense ? 'แบบย่อ — แถวเดียว' : 'แบบเต็ม — แสดงรายละเอียด'}</small></span><span class="switch ${dense ? 'on' : ''}" aria-hidden="true"></span></button>
   </div>
-  ${canApproveMembers(u, u.customer) ? `<div class="sgroup"><h4>บริษัทของฉัน</h4>${row('team', 'ชวนพนักงานเข้าใช้งาน', 'openInvite()', 'ส่งลิงก์สมัคร — คุณเป็นผู้อนุมัติ')}</div>` : ''}
+  ${canApproveMembers(u, u.customer) ? `<div class="sgroup"><h4>บริษัทของฉัน</h4>${row('team', 'ชวนพนักงานเข้าใช้งาน', 'openInvite()', 'ส่งลิงก์สมัคร — คุณเป็นผู้อนุมัติ')}${row('user', 'เพิ่มพนักงานเอง', 'openStaffForm()', 'สร้างบัญชีให้พนักงานทันที ไม่ต้องรอสมัคร')}</div>` : ''}
   ${isManager(u) ? `<div class="sgroup"><h4>จัดการ</h4>
     ${canManageUsers(u) ? row('team', 'ผู้ใช้และสิทธิ์', "goTab('users')") : ''}
     ${canSeeMissions(u) ? row('pin', 'ติดตามช่างภาคสนาม', "goTab('mission')") : ''}
