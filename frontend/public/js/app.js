@@ -445,7 +445,7 @@ function homeCustomer(u) {
   return pageHead(`สวัสดี คุณ${u.name}`, custName(u.customer), '', { logo: true })
   + tiles([
       { icon: 'alert', label: 'แจ้งเหตุ / แจ้งซ่อม', sub: 'ของใช้งานไม่ได้', fn: 'openCreate()' },
-      { icon: 'chat', label: 'ติดต่อทีมงาน', sub: 'เลื่อนนัด หรือขอความช่วยเหลือ', fn: 'openContact()' },
+      { icon: 'chat', label: 'ติดต่อร้องขอ', sub: 'สร้างบัญชี เลื่อนนัด หรือเรื่องอื่น', fn: 'openContact()' },
       { icon: 'doc', label: 'รายงานการทำงาน', sub: 'ดูใบรายงานช่าง', fn: "goTab('tickets')" },
       { icon: 'chat', label: 'ร้องเรียน / ติชม', sub: 'แจ้งความไม่พอใจ', fn: "openCreate('complaint')" }])
   + (pendingJoins(u).length ? fold('c-join', 'คำขอเข้าใช้งาน', `<div class="list dense">${pendingJoins(u).map(joinRow).join('')}</div>`, { count: pendingJoins(u).length, hot: true }) : '')
@@ -1280,8 +1280,8 @@ async function submitReject(id) {
 const CONTACT_LABEL = { reschedule: 'เลื่อนนัดงาน', account: 'ขอสร้างบัญชีพนักงาน', other: 'เรื่องอื่น ๆ' };
 function openContact() {
   const open = tickets.filter(isOpen), today = new Date().toLocaleDateString('sv-SE');
-  openModal(`<div class="mh"><h3>ติดต่อทีมงาน</h3>${xbtn()}</div>
-    <div class="catpick">${Object.entries(CONTACT_LABEL).map(([k, l], i) => `<label><input type="radio" name="ctype" value="${k}" ${i === 0 ? 'checked' : ''} onchange="document.getElementById('ctRs').hidden = this.value !== 'reschedule'"><span>${l}</span></label>`).join('')}</div>
+  openModal(`<div class="mh"><h3>ติดต่อร้องขอ</h3>${xbtn()}</div>
+    <div class="catpick">${Object.entries(CONTACT_LABEL).filter(([k]) => k !== 'reschedule' || open.length).map(([k, l], i) => `<label><input type="radio" name="ctype" value="${k}" ${i === 0 ? 'checked' : ''} onchange="document.getElementById('ctRs').hidden = this.value !== 'reschedule'"><span>${l}</span></label>`).join('')}</div>
     <div id="ctRs"><label class="fl">งานที่ต้องการเลื่อน <em>*</em><select id="ctTicket">${open.map(t => `<option value="${t.id}">${esc(t.subject)}</option>`).join('')}</select></label>
     <label class="fl">วันที่สะดวก <em>*</em><input id="ctDate" type="date" min="${today}"></label>
     <div class="two"><label class="fl">เริ่ม <em>*</em><input id="ctFrom" type="time" value="09:00"></label>
