@@ -323,6 +323,7 @@ function actionLabel(tk, to) {
 }
 function actionsFor(u, tk) {
   const acts = [];
+  if (u.role === 'customer' && isOpen(tk)) acts.push({ label: 'ขอเลื่อนนัด', short: 'เลื่อนนัด', fn: `openReschedule('${tk.id}')`, primary: false, icon: 'clock' });
   if (isManager(u) && tk.status !== 'closed') acts.push({ label: tk.plan ? 'แก้ไขวันและเวลา' : 'วางแผนวันและเวลา', short: 'วางแผน', fn: `openPlan('${tk.id}')`, primary: false, icon: 'clock' });
   if (canAssign(u, tk)) acts.push({ label: tk.assignee ? 'ย้ายผู้รับผิดชอบ' : 'มอบหมายช่าง', short: 'มอบหมาย', fn: `openAssign('${tk.id}')`, primary: !tk.assignee, icon: 'user' });
   if (canSignOff(u, tk) && u.role === 'technician') acts.push({ label: 'ให้ลูกค้าเซ็นรับงานบนเครื่องนี้', short: 'ให้ลูกค้าเซ็น', fn: `openSignOff('${tk.id}')`, primary: true, icon: 'pen' });
@@ -443,8 +444,10 @@ function homeCustomer(u) {
   const myProjects = projects.filter(p => canSeeProject(u, p) && pct(p) < 100);
   return pageHead(`สวัสดี คุณ${u.name}`, custName(u.customer), '', { logo: true })
   + tiles([
-      ...Object.entries(CATEGORIES).map(([k, c]) => ({ icon: c.icon, label: c.label, fn: `openCreate('', '${k}')` })),
-      { icon: 'chat', label: 'ร้องเรียน / ติชม', fn: "openCreate('complaint')" }])
+      { icon: 'alert', label: 'แจ้งเหตุ / แจ้งซ่อม', sub: 'ของใช้งานไม่ได้', fn: 'openCreate()' },
+      { icon: 'clock', label: 'เลื่อนนัด', sub: 'เปลี่ยนวันหรือเวลา', fn: 'openReschedulePick()' },
+      { icon: 'doc', label: 'รายงานการทำงาน', sub: 'ดูใบรายงานช่าง', fn: "goTab('tickets')" },
+      { icon: 'chat', label: 'ร้องเรียน / ติชม', sub: 'แจ้งความไม่พอใจ', fn: "openCreate('complaint')" }])
   + (pendingJoins(u).length ? fold('c-join', 'คำขอเข้าใช้งาน', `<div class="list dense">${pendingJoins(u).map(joinRow).join('')}</div>`, { count: pendingJoins(u).length, hot: true }) : '')
   + (toSign.length ? fold('c-sign', 'รอคุณเซ็นรับ', list(toSign, { quick: true }), { count: toSign.length, hot: true }) : '')
   + fold('c-open', 'กำลังดำเนินการ', open.length ? list(open) : empty('ไม่มีงานค้าง — ทุกอย่างเรียบร้อย'), { count: open.length })
@@ -1273,6 +1276,33 @@ async function submitReject(id) {
 }
 
 /* ---------- มอบหมายงาน ---------- */
+// ลูกค้าขอเลื่อนนัด: ส่งเป็นความเห็นในงาน ทีมงานเห็นแล้ววางแผนใหม่ในปฏิทิน
+function openReschedulePick() {
+  const open = tickets.filter(isOpen);
+  if (!open.length) return toast('ไม่มีงานที่เลื่อนนัดได้ในตอนนี้');
+  openModal(`<div class="mh"><h3>เลื่อนนัดงานไหน?</h3>${xbtn()}</div>
+    <div class="opts">${open.map(t => `<button class="btn block" onclick="openReschedule('${t.id}')">${esc(t.subject)}</button>`).join('')}</div>`);
+}
+function openReschedule(id) {
+  const tk = tickets.find(x => x.id === id);
+  if (!tk || !isOpen(tk)) return;
+  openModal(`<div class="mh"><h3>ขอเลื่อนนัด ${tk.id}</h3>${xbtn()}</div>
+    <p class="hint" style="margin:0 0 8px">${esc(tk.subject)}</p>
+    <label class="fl">วันที่สะดวก <em>*</em><input id="rsDate" type="date" min="${new Date().toLocaleDateString('sv-SE')}"></label>
+    <div class="two"><label class="fl">เริ่ม <em>*</em><input id="rsFrom" type="time" value="09:00"></label>
+    <label class="fl">ถึง <em>*</em><input id="rsTo" type="time" value="12:00"></label></div>
+    <label class="fl">เหตุผล (ไม่บังคับ)<input id="rsWhy" maxlength="200" placeholder="เช่น ไม่มีคนรับเรื่องในช่วงนั้น"></label>
+    <div class="err" id="rsErr" role="alert"></div>
+    <div class="row end"><button class="btn" onclick="closeModal()">ยกเลิก</button><button class="btn primary" onclick="saveReschedule('${tk.id}')">ส่งคำขอ</button></div>`);
+}
+async function saveReschedule(id) {
+  const date = $('rsDate').value, from = $('rsFrom').value, to = $('rsTo').value, why = $('rsWhy').value.trim();
+  const err = !date ? 'กรุณาเลือกวันที่' : !from || !to || from >= to ? 'เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่ม' : '';
+  if (err) { $('rsErr').textContent = err; return; }
+  const text = `ขอเลื่อนนัดเป็น ${date} ${from}–${to}${why ? ' — ' + why : ''}`;
+  if (!await call(`/tickets/${id}/comments`, { text, vis: 'public' }, 'rsErr')) return;
+  closeModal(); toast('ส่งคำขอเลื่อนนัดแล้ว ทีมงานจะยืนยันให้'); renderAll();
+}
 // วางแผนงานในปฏิทิน: วันที่ + ช่วงเวลา · ปล่อยวันที่ว่างเพื่อล้างแผน
 function openPlan(id) {
   const tk = tickets.find(x => x.id === id);
