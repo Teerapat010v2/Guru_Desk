@@ -445,7 +445,7 @@ function homeCustomer(u) {
   return pageHead(`สวัสดี คุณ${u.name}`, custName(u.customer), '', { logo: true })
   + tiles([
       { icon: 'alert', label: 'แจ้งเหตุ / แจ้งซ่อม', sub: 'ของใช้งานไม่ได้', fn: 'openCreate()' },
-      { icon: 'chat', label: 'ติดต่อร้องขอ', sub: 'สร้างบัญชี เลื่อนนัด หรือเรื่องอื่น', fn: 'openContact()' },
+      { icon: 'chat', label: 'ติดต่อร้องขอ', sub: 'ขอบัญชี · เลื่อนนัด', fn: 'openContact()' },
       { icon: 'doc', label: 'รายงานการทำงาน', sub: 'ดูใบรายงานช่าง', fn: "goTab('tickets')" },
       { icon: 'chat', label: 'ร้องเรียน / ติชม', sub: 'แจ้งความไม่พอใจ', fn: "openCreate('complaint')" }])
   + (pendingJoins(u).length ? fold('c-join', 'คำขอเข้าใช้งาน', `<div class="list dense">${pendingJoins(u).map(joinRow).join('')}</div>`, { count: pendingJoins(u).length, hot: true }) : '')
@@ -643,7 +643,7 @@ function openStaffForm(id) {
     ${emailField('stEmail', x?.email)}
     <label class="fl">เบอร์โทร <em>*</em><input id="stPhone" type="tel" inputmode="tel" maxlength="15" placeholder="เช่น 081-234-5678" value="${esc(x?.phone || '')}"></label>
     ${pwField('stPw', !x)}
-    ${x ? `<label class="srow" style="margin-top:10px"><input type="checkbox" id="stOff" ${x.removed ? 'checked' : ''}><span>ปิดการใช้งานบัญชีนี้<small>พนักงานจะเข้าระบบไม่ได้ ประวัติงานยังอยู่</small></span></label>` : ''}
+    ${x ? `<label style="display:flex;flex-direction:row;align-items:center;gap:10px;margin-top:12px"><input type="checkbox" id="stOff" style="width:20px;height:20px;padding:0" ${x.removed ? 'checked' : ''}><span>ปิดการใช้งานบัญชีนี้<small style="display:block;color:var(--text-2);margin-top:2px">พนักงานจะเข้าระบบไม่ได้ ประวัติงานยังอยู่</small></span></label>` : ''}
     <div class="err" id="stErr" role="alert"></div>
     <div class="row end"><button class="btn" onclick="closeModal()">ยกเลิก</button><button class="btn primary" onclick="saveStaff(${x ? `'${id}'` : ''})">บันทึก</button></div>`);
   focusLater('stName');
@@ -1808,7 +1808,7 @@ function openUserForm(role, id) {
     <label class="fl">เบอร์โทร <em>*</em><input id="usPhone" type="tel" inputmode="tel" maxlength="15" value="${esc(x?.phone || '')}"></label>
     ${pwField('usPw', !x)}
     ${role === 'customer' ? `<label class="fl">บริษัท <em>*</em><select id="usCust">${cs.map(c => `<option value="${c.id}" ${x?.customer === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
-    <label class="srow" style="margin-top:10px"><input type="checkbox" id="usRep" ${x?.approver ? 'checked' : ''}><span>ตัวแทนบริษัท<small>ชวนและอนุมัติพนักงานของบริษัทได้</small></span></label>` : ''}
+    <label style="display:flex;flex-direction:row;align-items:center;gap:10px;margin-top:12px"><input type="checkbox" id="usRep" style="width:20px;height:20px;padding:0" ${x?.approver ? 'checked' : ''}><span>ตัวแทนบริษัท<small>ชวนและอนุมัติพนักงานของบริษัทได้</small></span></label>` : ''}
     <div class="err" id="usErr" role="alert"></div>
     <div class="row end"><button class="btn" onclick="closeModal()">ยกเลิก</button><button class="btn primary" onclick="saveUser('${role}'${x ? `,'${id}'` : ''})">บันทึก</button></div>`);
   focusLater('usName');
