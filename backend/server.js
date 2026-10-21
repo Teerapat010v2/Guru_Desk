@@ -21,9 +21,11 @@ const send = (res, code, body, headers = {}) => {
   res.end(JSON.stringify(body));
 };
 // ข้อมูลจากเบราว์เซอร์ไม่น่าเชื่อถือ: จำกัดขนาด (ภาษาไทย 1 ตัว = 3 ไบต์ ข้อความ 2000 ตัวจึงเกิน 4 KB) และถ้า JSON เสียให้ถือว่าว่าง
-const readJson = req => new Promise(resolve => {
+// max: ลายเซ็นเป็นรูป PNG แบบ base64 จึงต้องใหญ่กว่าข้อความทั่วไป · คำสั่งที่แนบรูปได้ใช้ PHOTO_BODY
+const PHOTO_BODY = 4_000_000;
+const readJson = (req, max = 262144) => new Promise(resolve => {
   let s = '';
-  req.on('data', c => { s += c; if (s.length > 262144) req.destroy(); });   // ลายเซ็นเป็นรูป PNG แบบ base64 จึงต้องใหญ่กว่าข้อความทั่วไป
+  req.on('data', c => { s += c; if (s.length > max) req.destroy(); });
   req.on('end', () => { try { resolve(JSON.parse(s || '{}')); } catch { resolve({}); } });
 });
 const sessionToken = req => (req.headers.cookie ?? '').match(new RegExp(`(?:^|;\\s*)${COOKIE}=([^;]+)`))?.[1] ?? null;
@@ -39,12 +41,47 @@ function validPng(sig) {
   return b.length >= 33 && b.subarray(0, 8).equals(PNG_MAGIC) && b.subarray(12, 16).toString('latin1') === 'IHDR';
 }
 
+/* รูปแนบ: หน้าเว็บย่อเป็น JPEG (ด้านยาว 1024px) แล้วส่งมาเป็น dataURL
+   รหัสรูป = "เจ้าของ:ชนิด:สุ่ม" เพื่อผูกกับข้อมูลโดยไม่ต้องเพิ่มคอลัมน์ —
+   t = รูปตอนเปิดงาน · c<id> = ความเห็น · w<id> = work log · r = ใบรายงาน (เจ้าของคือเลขงาน) · u = รูปโปรไฟล์ (รหัสผู้ใช้) · j = คำขอสมัคร (รหัสคำขอ) */
+const MAX_PHOTOS = 5;
+const JPEG = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]{100,700000})$/;
+const PHOTO_ID = /^([\w-]{1,40}):([tcwruj])(\d{0,18}):[0-9a-f]{12}$/;
+// คืนรายการ dataURL ที่ถูกต้อง · ไม่ส่งมา = [] · ผิดรูปแบบหรือเกินจำนวน = null
+function parsePhotos(v, max = MAX_PHOTOS) {
+  if (v == null) return [];
+  if (!Array.isArray(v) || v.length > max) return null;
+  for (const p of v) {
+    const m = typeof p === 'string' && JPEG.exec(p);
+    if (!m || Buffer.from(m[1].slice(0, 8), 'base64').subarray(0, 3).toString('hex') !== 'ffd8ff') return null;
+  }
+  return v;
+}
+async function savePhotos(q, owner, kind, list) {
+  const ids = list.map(() => `${owner}:${kind}:${randomBytes(6).toString('hex')}`);
+  for (let i = 0; i < ids.length; i++) await q.query('insert into photos (id, data) values ($1, $2)', [ids[i], list[i]]);
+  return ids;
+}
+
+// การแจ้งเตือน: server สร้างเองตามการกระทำ (ผู้ใช้ส่งแจ้งเตือนหาคนอื่นตรง ๆ ไม่ได้) · ข้ามบัญชีที่ปิดแล้ว
+async function notify(q, toIds, title, body, ticketId = null, go = null) {
+  const to = [...new Set(toIds.filter(Boolean))];
+  if (!to.length) return;
+  const { rows } = await q.query('select id from users where id = any($1) and removed = false', [to]);
+  for (const { id } of rows)
+    await q.query('insert into notifications (id, to_user, title, body, ticket_id, go) values ($1, $2, $3, $4, $5, $6)',
+      [`N${randomBytes(6).toString('hex')}`, id, title.slice(0, 200), body.slice(0, 500), ticketId, go]);
+}
+// หัวหน้าทีมและผู้ดูแลที่ยังใช้งานอยู่ (คนกระจายงาน)
+const dispatchers = async q => (await q.query("select id from users where role in ('team_leader', 'admin') and removed = false")).rows.map(r => r.id);
+const companyUsers = async (q, cid) => (await q.query("select id from users where role = 'customer' and customer_id = $1", [cid])).rows.map(r => r.id);
+
 // ผู้ใช้ที่เข้าสู่ระบบอยู่ (จาก session ที่ยังไม่หมดอายุ) หรือ null
 async function currentUser(req) {
   const t = sessionToken(req);
   if (!t) return null;
   const { rows: [u] } = await pool.query(
-    `select u.id, u.name, u.role, u.team, u.customer_id from sessions s
+    `select u.id, u.name, u.role, u.team, u.customer_id, u.approver from sessions s
      join users u on u.id = s.user_id
      where s.token_hash = $1 and s.expires_at > now() and u.removed = false`, [hashToken(t)]);
   return u ?? null;
