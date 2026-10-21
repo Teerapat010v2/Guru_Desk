@@ -445,7 +445,7 @@ function homeCustomer(u) {
   return pageHead(`สวัสดี คุณ${u.name}`, custName(u.customer), '', { logo: true })
   + tiles([
       { icon: 'alert', label: 'แจ้งเหตุ / แจ้งซ่อม', sub: 'ของใช้งานไม่ได้', fn: 'openCreate()' },
-      { icon: 'clock', label: 'เลื่อนนัด', sub: 'เปลี่ยนวันหรือเวลา', fn: 'openReschedulePick()' },
+      { icon: 'chat', label: 'ติดต่อทีมงาน', sub: 'เลื่อนนัด หรือขอความช่วยเหลือ', fn: 'openContact()' },
       { icon: 'doc', label: 'รายงานการทำงาน', sub: 'ดูใบรายงานช่าง', fn: "goTab('tickets')" },
       { icon: 'chat', label: 'ร้องเรียน / ติชม', sub: 'แจ้งความไม่พอใจ', fn: "openCreate('complaint')" }])
   + (pendingJoins(u).length ? fold('c-join', 'คำขอเข้าใช้งาน', `<div class="list dense">${pendingJoins(u).map(joinRow).join('')}</div>`, { count: pendingJoins(u).length, hot: true }) : '')
@@ -1276,6 +1276,36 @@ async function submitReject(id) {
 }
 
 /* ---------- มอบหมายงาน ---------- */
+// ติดต่อทีมงาน: เลื่อนนัดงาน (ส่งเป็นความเห็นในงาน) หรือขอสร้างบัญชี/เรื่องอื่น (เปิดเป็นงานใหม่ให้ทีมติดตาม)
+const CONTACT_LABEL = { reschedule: 'เลื่อนนัดงาน', account: 'ขอสร้างบัญชีพนักงาน', other: 'เรื่องอื่น ๆ' };
+function openContact() {
+  const open = tickets.filter(isOpen), today = new Date().toLocaleDateString('sv-SE');
+  openModal(`<div class="mh"><h3>ติดต่อทีมงาน</h3>${xbtn()}</div>
+    <div class="catpick">${Object.entries(CONTACT_LABEL).map(([k, l], i) => `<label><input type="radio" name="ctype" value="${k}" ${i === 0 ? 'checked' : ''} onchange="document.getElementById('ctRs').hidden = this.value !== 'reschedule'"><span>${l}</span></label>`).join('')}</div>
+    <div id="ctRs"><label class="fl">งานที่ต้องการเลื่อน <em>*</em><select id="ctTicket">${open.map(t => `<option value="${t.id}">${esc(t.subject)}</option>`).join('')}</select></label>
+    <label class="fl">วันที่สะดวก <em>*</em><input id="ctDate" type="date" min="${today}"></label>
+    <div class="two"><label class="fl">เริ่ม <em>*</em><input id="ctFrom" type="time" value="09:00"></label>
+    <label class="fl">ถึง <em>*</em><input id="ctTo" type="time" value="12:00"></label></div></div>
+    <label class="fl">รายละเอียด <em>*</em><textarea id="ctText" rows="3" maxlength="1000" placeholder="เช่น ขอเปิดบัญชีให้พนักงานชื่อ... อีเมล..."></textarea></label>
+    <div class="err" id="ctErr" role="alert"></div>
+    <div class="row end"><button class="btn" onclick="closeModal()">ยกเลิก</button><button class="btn primary" onclick="saveContact()">ส่ง</button></div>`);
+  document.getElementById('ctRs').hidden = true;
+}
+async function saveContact() {
+  const type = document.querySelector('input[name=ctype]:checked')?.value, text = $('ctText').value.trim();
+  if (!text) { $('ctErr').textContent = 'กรุณากรอกรายละเอียด'; return; }
+  if (type === 'reschedule') {
+    const date = $('ctDate').value, from = $('ctFrom').value, to = $('ctTo').value, id = $('ctTicket').value;
+    if (!id) { $('ctErr').textContent = 'ไม่มีงานที่เลื่อนได้'; return; }
+    if (!date) { $('ctErr').textContent = 'กรุณาเลือกวันที่'; return; }
+    if (!from || !to || from >= to) { $('ctErr').textContent = 'เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่ม'; return; }
+    if (!await call(`/tickets/${id}/comments`, { text: `ขอเลื่อนนัดเป็น ${date} ${from}–${to} — ${text}`, vis: 'public' }, 'ctErr')) return;
+    closeModal(); toast('ส่งคำขอเลื่อนนัดแล้ว ทีมงานจะยืนยันให้'); renderAll(); return;
+  }
+  const d = await call('/tickets', { type: 'service', desc: `${CONTACT_LABEL[type]}: ${text}`, urgent: false, siteId: currentUser.siteId || '', category: 'other' }, 'ctErr');
+  if (!d) return;
+  closeModal(); toast(`ส่งเรื่องแล้ว เลขงาน ${d.id} ทีมงานจะติดต่อกลับ`); renderAll();
+}
 // ลูกค้าขอเลื่อนนัด: ส่งเป็นความเห็นในงาน ทีมงานเห็นแล้ววางแผนใหม่ในปฏิทิน
 function openReschedulePick() {
   const open = tickets.filter(isOpen);
