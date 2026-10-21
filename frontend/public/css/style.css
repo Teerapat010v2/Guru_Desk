@@ -681,3 +681,6 @@ label.fl+.voicebox{margin-top:6px}
 .ttabs button[data-k=pending],.side-filters button[data-k=pending]{color:var(--text-2)}
 .ttabs button[data-k=closed],.side-filters button[data-k=closed]{color:var(--ok)}
 .ttabs button.on,.side-filters button.on{color:var(--primary)}
+
+/* มือถือ: หัวข้อหน้าได้เต็มความกว้าง ปุ่มมุมขวาขึ้นบรรทัดใหม่ (กันชื่อหน้าตัดคำ) */
+@media (max-width:599px){.phead{flex-wrap:wrap}.phead .ph-t{flex:1 1 70%}.phead .ph-a{margin-left:auto}}
