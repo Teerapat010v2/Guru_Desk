@@ -505,7 +505,8 @@ function homeLead(u) {
       { icon: 'chart', label: 'ผลงาน 7 วัน', sub: `${done7.length} งาน${avg ? ` · ★ ${num(avg)}` : ''}`, fn: "rpt.period='7';rpt.view='summary';goTab('reports')" }])
   + workSection(u)
   + (() => { const pl = tickets.filter(t => t.plan && isOpen(t)).sort((a, b) => (a.plan.date + a.plan.from) < (b.plan.date + b.plan.from) ? -1 : 1);
-    return fold('l-plan', 'งานที่วางแผนไว้', pl.length ? `<div class="list dense">${pl.map(t => `<button class="trow" onclick="openTicket('${t.id}')"><div class="tr-m"><b>${esc(t.subject)}</b><small>${t.plan.date.slice(5)} ${t.plan.from}–${t.plan.to} · ${esc(t.assignee ? nameOf(t.assignee) : 'ยังไม่มอบหมาย')}</small></div>${ic('right', 16, 2)}</button>`).join('')}</div>` : empty('ยังไม่มีงานที่วางแผนไว้', 'clock'), { count: pl.length, open: pl.length > 0 }); })()
+    const days = [...new Set(pl.map(t => t.plan.date))];
+    return fold('l-plan', 'ปฏิทินงาน', pl.length ? days.map(d => `<div class="cal-day"><b>${new Date(d + 'T00:00').toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' })}</b>${pl.filter(t => t.plan.date === d).map(t => `<button class="trow" onclick="openTicket('${t.id}')"><div class="tr-m"><b>${t.plan.from}–${t.plan.to} · ${esc(t.subject)}</b><small>${esc(custName(t.customer))} · ${esc(t.assignee ? nameOf(t.assignee) : 'ยังไม่มอบหมาย')}</small></div>${ic('right', 16, 2)}</button>`).join('')}</div>`).join('') : empty('ยังไม่มีนัดหมาย ตั้งวันและเวลาได้ในหน้ารายละเอียดงาน', 'clock'), { count: pl.length, open: pl.length > 0 }); })()
   + fold('l-load', 'ภาระงานของช่าง', `<div class="card">${techs.map(x => {
       const mine = tickets.filter(t => t.assignee === x.id && isOpen(t)), n = mine.length;
       return `<div class="load"><div class="lname"><b>${esc(x.name)}</b><small>${n} งานเปิด${mine.some(t => t.priority === 'urgent') ? ' · <em class="prio-urgent">มีงานด่วน</em>' : ''}</small></div>

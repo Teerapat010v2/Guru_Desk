@@ -30,3 +30,22 @@ export async function sendReportMail(to, report) {
   await transport.sendMail({ from: process.env.MAIL_FROM || process.env.SMTP_USER, to, ...m });
   return true;
 }
+
+// นัดหมายงาน: ส่งให้ลูกค้าและช่างที่รับงานเมื่อวางแผนวันเวลาในปฏิทิน
+export function scheduleMail({ subject, date, from, to, role }) {
+  return {
+    subject: `นัดหมายงาน ${subject} — ${date} ${from}–${to}`,
+    html: `<div style="font-family:sans-serif;color:#18212d">
+      <h2 style="margin:0 0 8px">${role === 'customer' ? 'นัดหมายการเข้าบริการ' : 'คุณมีนัดหมายงานใหม่'}</h2>
+      <p><b>งาน</b> ${esc(subject)}</p>
+      <p><b>วันที่</b> ${esc(date)}</p>
+      <p><b>เวลา</b> ${esc(from)} – ${esc(to)} น.</p>
+      <p style="color:#5f6875;font-size:12px">อีเมลนี้ส่งอัตโนมัติจาก Guru IT Service Desk</p></div>`,
+  };
+}
+
+export async function sendScheduleMail(to, info) {
+  if (!transport || !to) return false;
+  await transport.sendMail({ from: process.env.MAIL_FROM || process.env.SMTP_USER, to, ...scheduleMail(info) });
+  return true;
+}
