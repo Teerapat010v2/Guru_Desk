@@ -725,18 +725,7 @@ http.createServer(async (req, res) => {
       });
       return ok ? send(res, 200, { ok: true }) : send(res, 404, { error: 'not_found' });
     }
-    // ค้นหาบริษัทสำหรับสมัคร (ไม่ต้องเข้าสู่ระบบ): รหัสตรงตัว หรือชื่อที่พิมพ์ ≥ 3 ตัว ไม่เกิน 5 ราย กันคนนอกไล่ดูรายชื่อลูกค้า
-    // shortcut: อ่านรายชื่อลูกค้าทั้งหมดมากรองในหน่วยความจำ — ใช้ได้เมื่อลูกค้าหลักร้อย ถ้าเกินให้ค้นด้วย SQL
-    if (req.method === 'GET' && req.url.startsWith('/api/companies?')) {
-      const q = (new URL(req.url, 'http://x').searchParams.get('q') ?? '').trim();
-      if (q.length > 60) return send(res, 400, { error: 'invalid_text' });
-      const norm = s => s.toLowerCase().replace(/บริษัท|จำกัด|\(มหาชน\)|มหาชน|\s|\./g, '');
-      const key = norm(q);
-      if (!key) return send(res, 200, []);
-      const { rows } = await pool.query('select id, name from customers order by name');
-      return send(res, 200, rows.filter(c => c.id.toLowerCase() === q.toLowerCase() || (key.length >= 3 && norm(c.name).includes(key))).slice(0, 5));
-    }
-    // สมัครผ่านลิงก์ชวนหรือค้นหาบริษัท: ผู้สมัครตั้งรหัสเอง บัญชีจะถูกปิดไว้ก่อนจนกว่าตัวแทนบริษัทจะยอมรับ
+    // สมัครผ่านลิงก์ชวน: ผู้สมัครตั้งรหัสเอง บัญชีจะถูกปิดไว้ก่อนจนกว่าตัวแทนบริษัทจะยอมรับ
     // shortcut: ลิงก์ใช้รหัสบริษัทตรง ๆ — ระบบจริงควรใช้โทเคนที่ยกเลิก/หมดอายุได้
     const joinUrl = req.url.match(/^\/api\/join\/([\w-]{1,40})$/);
     if (joinUrl) {

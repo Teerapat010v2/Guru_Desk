@@ -611,7 +611,7 @@ async function submitJoin() {
     joinDone = true; renderAll();
   } catch (e) { $('jErr').textContent = e.message; }
 }
-// เปิดหน้าสมัครของบริษัทนั้น (จากการค้นหาหรือลิงก์ ?join=)
+// เปิดหน้าสมัครของบริษัทนั้น (จากลิงก์ ?join=)
 async function pickJoin(cid) {
   joinCid = cid; joinDone = false; joinDraft = { name: '', email: '', phone: '', photo: null, password: '' };
   joinInfo = await api(`/join/${encodeURIComponent(cid)}`).catch(() => null);
@@ -622,16 +622,6 @@ function leaveJoin() {
   joinCid = null; joinInfo = null; joinDone = false; joinDraft = { name: '', email: '', phone: '', photo: null, password: '' };
   history.replaceState(null, '', location.pathname);
   renderAll();
-}
-// ค้นหาบริษัทที่หน้าเข้าสู่ระบบ: รหัสตรงตัว หรือชื่อ (พิมพ์ ≥ 3 ตัว) ไม่เกิน 5 ราย
-async function showCompanyMatches() {
-  const q = $('lgCompany').value.trim(), box = $('lgMatches');
-  box.hidden = !q;
-  if (!q) return;
-  const found = await api(`/companies?q=${encodeURIComponent(q)}`).catch(() => []);
-  if ($('lgCompany')?.value.trim() !== q) return;   // ผู้ใช้พิมพ์ต่อแล้ว ไม่ต้องแสดงผลเก่า
-  box.innerHTML = found.length ? found.map(c => `<button class="trow" onclick="pickJoin('${c.id}')">${ic('building', 18, 1.8)}<div class="tr-m"><b>${esc(c.name)}</b><small>แตะเพื่อสมัครในนามบริษัทนี้</small></div>${ic('right', 16, 2)}</button>`).join('')
-    : `<div class="trow jrow"><div class="tr-m"><small>${q.replace(/\s/g, '').length < 3 ? 'พิมพ์รหัส หรือชื่อบริษัทอย่างน้อย 3 ตัวอักษร' : 'ไม่พบบริษัท — ตรวจชื่ออีกครั้ง หรือขอลิงก์จากตัวแทนบริษัท'}</small></div></div>`;
 }
 
 const pendingJoins = u => canApproveMembers(u, u.customer) ? joinRequests.filter(r => r.customer === u.customer && r.status === 'pending') : [];
@@ -755,9 +745,8 @@ function renderLogin() {
       <div class="err" id="lgErr" role="alert"></div>
       <button class="btn primary block" id="lgBtn" style="margin-top:16px" onclick="doLogin()">เข้าสู่ระบบ</button>
     ${st ? '' : `<div class="divider">ยังไม่มีบัญชี?</div>
-    <p class="hint" style="margin:6px 0 8px">ค้นหาชื่อบริษัทของคุณ แล้วกรอกข้อมูลสมัคร — ตัวแทนบริษัทจะยืนยันก่อนเข้าใช้งาน</p>
-    <div class="cbox"><input id="lgCompany" type="search" placeholder="รหัส หรือชื่อบริษัท" maxlength="60" aria-label="รหัส หรือชื่อบริษัท" autocomplete="organization" oninput="showCompanyMatches()"></div>
-    <div id="lgMatches" class="list dense" style="margin-top:8px" hidden></div>`}
+    <p class="hint" style="margin:6px 0 8px">ขอลิงก์สมัครจากตัวแทนบริษัทของคุณ หรือให้ผู้ดูแลระบบ Guru IT สร้างบัญชีให้</p>
+    `}
 
     <button class="btn link block" style="margin-top:22px" onclick="setLoginMode(${!st})">${st ? `${ic('user', 16, 2)}กลับไปเข้าสู่ระบบลูกค้า` : `${ic('tool', 16, 2)}เข้าสู่ระบบสำหรับช่าง / เจ้าหน้าที่`}</button>
   </div>`;
