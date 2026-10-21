@@ -688,11 +688,8 @@ const avatarHtml = (u, s = 40) => u?.photo && PHOTOS[u.photo]
 // shortcut: แจ้งเตือนเก็บในเบราว์เซอร์นี้ และเด้งเมื่อผู้รับเปิดแอป — ส่งถึงมือถือ/คอมที่ปิดแอปอยู่ต้องมี server + Web Push
 const myNotifs = () => currentUser ? notifs.filter(n => n.to === currentUser.id).sort((a, b) => b.at - a.at) : [];
 const dispatchers = () => Object.values(users).filter(u => isManager(u) && !u.removed).map(u => u.id);
-function notify(toIds, title, body, ticketId = null, go = null) {
-  const to = [...new Set(toIds)].filter(id => users[id] && !users[id].removed);
-  to.forEach(id => notifs.push({ id: `N${nextNotifNo++}`, to: id, title, body, ticketId, go, at: new Date(), read: false }));
-  if (currentUser && to.includes(currentUser.id)) deliverNotifs();
-}
+// การแจ้งเตือนสร้างที่ server แล้ว (ดู backend/server.js) หน้าเว็บแค่โหลดและแสดง
+function notify() {}
 let audioCtx = null;
 function chime() {
   try {
@@ -734,11 +731,11 @@ function openNotifs() {
 }
 function openNotif(id) {
   const n = notifs.find(x => x.id === id && x.to === currentUser?.id); if (!n) return;
-  n.read = true; closeModal();
+  n.read = true; api('/notifications/read', { id }).catch(() => {}); closeModal();
   if (n.go) goTab(n.go); else renderAll();
   if (n.ticketId) openTicket(n.ticketId);
 }
-function markAllRead() { myNotifs().forEach(n => { n.read = true; }); closeModal(); renderAll(); }
+function markAllRead() { api('/notifications/read', {}).then(loadState).then(() => { closeModal(); renderAll(); }, () => {}); }
 
 /* ---------- เข้าสู่ระบบด้วยอีเมลและรหัสผ่าน (ตรวจที่ server) ---------- */
 /* หน้าลูกค้า / หน้าเจ้าหน้าที่ ต่างกันแค่ข้อความ — ทุกบัญชีเข้าได้จากทั้งสองหน้า */
@@ -918,17 +915,16 @@ function projectSheet(id) {
       ${edit ? `<div class="cbox" style="margin-top:10px"><input id="newTask" placeholder="เพิ่มขั้นตอน…" maxlength="120" aria-label="ขั้นตอนใหม่" onkeydown="if(event.key==='Enter')addTask('${id}')"><button class="btn primary send" onclick="addTask('${id}')" aria-label="เพิ่มขั้นตอน">${ic('plus', 18, 2.4)}</button></div>` : ''}</div>`,
       { count: `${p.tasks.filter(x => x.done).length}/${p.tasks.length}` })}`];
 }
-function toggleTask(id, i) {
+async function toggleTask(id, i) {
   const p = projects.find(x => x.id === id); if (!p || !canEditProject(currentUser, p)) return;
-  p.tasks[i].done = !p.tasks[i].done;
-  logAudit(currentUser, `โปรเจกต์ ${p.name}`, `${p.tasks[i].done ? '✓' : '↺'} ${p.tasks[i].text}`);
-  if (pct(p) === 100) notify(Object.values(users).filter(x => x.customer === p.customer || isManager(x)).map(x => x.id).filter(x => x !== currentUser.id), 'โปรเจกต์เสร็จแล้ว', p.name, null, 'projects');
+  await call(`/projects/${id}/tasks/${p.tasks[i].id}`, { done: !p.tasks[i].done });
   renderAll();
 }
-function addTask(id) {
+async function addTask(id) {
   const p = projects.find(x => x.id === id), t = $('newTask').value.trim();
   if (!t || !p || !canEditProject(currentUser, p)) return;
-  p.tasks.push({ text: t, done: false }); renderAll();
+  await call(`/projects/${id}/tasks`, { text: t });
+  renderAll();
 }
 function openProjectForm() {
   if (!isManager(currentUser)) return;
@@ -944,17 +940,15 @@ function openProjectForm() {
     <div class="err" id="pjErr" role="alert"></div>
     <div class="row end"><button class="btn" onclick="closeModal()">ยกเลิก</button><button class="btn primary" onclick="saveProject()">สร้างโปรเจกต์</button></div>`);
 }
-function saveProject() {
+async function saveProject() {
   const u = currentUser; if (!isManager(u)) return;
   const name = $('pjName').value.trim(), due = $('pjDue').value, owner = $('pjOwner').value, customer = $('fCust').value, siteId = $('fSite').value;
-  const err = !name ? 'กรุณากรอกชื่อโปรเจกต์' : !due ? 'กรุณาเลือกวันกำหนดเสร็จ' : !users[owner] ? 'กรุณาเลือกผู้รับผิดชอบ' : !sitesFor(u, customer).some(s => s.id === siteId) ? 'กรุณาเลือกสถานที่' : '';
+  const err = !name ? 'กรุณากรอกชื่อโปรเจกต์' : !due ? 'กรุณาเลือกวันกำหนดเสร็จ' : !owner ? 'กรุณาเลือกผู้รับผิดชอบ' : '';
   if (err) { $('pjErr').textContent = err; return; }
-  const p = { id: `PJ${nextProjectNo++}`, name, category: $('pjCat').value, customer, siteId, owner, due: new Date(`${due}T17:00`), createdAt: new Date(),
-    tasks: $('pjTasks').value.split('\n').map(s => s.trim()).filter(Boolean).map(text => ({ text, done: false })) };
-  projects.push(p);
-  notify([owner], 'ได้รับมอบหมายโปรเจกต์', `${name} — ${custName(customer)}`, null, 'projects');
-  logAudit(u, 'สร้างโปรเจกต์', name);
-  closeModal(); toast('สร้างโปรเจกต์แล้ว'); renderAll(); openProject(p.id);
+  const tasks = $('pjTasks').value.split('\n').map(s => s.trim()).filter(Boolean);
+  const d = await call('/projects', { name, category: $('pjCat').value, customerId: customer, siteId, ownerId: owner, due, tasks }, 'pjErr');
+  if (!d) return;
+  closeModal(); toast('สร้างโปรเจกต์แล้ว'); renderAll(); openProject(d.id);
 }
 
 /* ---------- หน้า "ฉัน": โปรไฟล์ · โหมดสี · ตั้งค่า ---------- */

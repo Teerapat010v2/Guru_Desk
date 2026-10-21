@@ -57,7 +57,7 @@ async function api(path, body) {
 
 function clearData() {
   for (const o of [users, customers]) for (const k of Object.keys(o)) delete o[k];
-  tickets = []; auditLog = []; joinRequests = [];
+  tickets = []; auditLog = []; joinRequests = []; projects = []; notifs = [];
 }
 
 // โหลดข้อมูลทั้งหมดที่ผู้ใช้คนนี้เห็นได้ แล้วแทนที่ของเดิม (ยังไม่เข้าสู่ระบบ = โยน Error)
@@ -69,6 +69,8 @@ async function loadState() {
   tickets = s.tickets;
   auditLog = s.audit;
   joinRequests = s.joinRequests;
+  projects = s.projects.map(p => ({ ...p, due: new Date(p.due + 'T17:00'), createdAt: new Date(p.createdAt) }));
+  notifs = s.notifs.map(n => ({ ...n, at: new Date(n.at) }));
   currentUser = users[s.me] || null;
   await loadPhotos(s.photoIds);
 }
