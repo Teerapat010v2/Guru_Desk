@@ -443,9 +443,7 @@ function homeCustomer(u) {
   const myProjects = projects.filter(p => canSeeProject(u, p) && pct(p) < 100);
   return pageHead(`สวัสดี คุณ${u.name}`, custName(u.customer), '', { logo: true })
   + tiles([
-      { icon: 'pen', label: 'แจ้งปัญหา', fn: 'openCreate()' },
-      SR && { icon: 'mic', label: 'พูดแจ้งปัญหา', fn: "openCreate('voice')" },
-      { icon: 'camera', label: 'ถ่ายรูปแจ้ง', fn: "openCreate('photo')" },
+      ...Object.entries(CATEGORIES).map(([k, c]) => ({ icon: c.icon, label: c.label, fn: `openCreate('', '${k}')` })),
       { icon: 'chat', label: 'ร้องเรียน / ติชม', fn: "openCreate('complaint')" }])
   + (pendingJoins(u).length ? fold('c-join', 'คำขอเข้าใช้งาน', `<div class="list dense">${pendingJoins(u).map(joinRow).join('')}</div>`, { count: pendingJoins(u).length, hot: true }) : '')
   + (toSign.length ? fold('c-sign', 'รอคุณเซ็นรับ', list(toSign, { quick: true }), { count: toSign.length, hot: true }) : '')
@@ -1315,11 +1313,13 @@ async function confirmAssign(id) {
 }
 
 /* ---------- แจ้งปัญหา (ลูกค้า): พิมพ์ / พูด / ถ่ายรูป — ช่องเดียวจบ ---------- */
-let createType = 'service';
-function openCreateCustomer(mode) {
+let createType = 'service', createCat = '';
+function openCreateCustomer(mode, cat = '') {
   const u = currentUser, sites = sitesFor(u, u.customer), cpl = mode === 'complaint';
   createType = cpl ? 'complaint' : 'service';
+  createCat = cat;
   openModal(`<div class="mh"><h3>${cpl ? 'ร้องเรียน / ติชมบริการ' : 'แจ้งปัญหา'}</h3>${xbtn()}</div>
+    ${cpl ? '' : `<div class="catpick">${Object.entries(CATEGORIES).map(([k, c]) => `<label><input type="radio" name="ccat" value="${k}" ${createCat === k ? 'checked' : ''} onchange="createCat=this.value"><span>${ic(c.icon, 18)}${c.label}</span></label>`).join('')}</div>`}
     <p class="lead-hint">${cpl ? 'เล่าสิ่งที่ไม่พอใจ — หัวหน้าทีมจะดูแลเรื่องนี้โดยตรง' : 'บอกเราสั้น ๆ ว่าเกิดอะไรขึ้น'}</p>
     ${voiceBox('fDesc', `rows="4" placeholder="${cpl ? 'เช่น ช่างมาช้ากว่านัด ไม่มีใครโทรแจ้ง' : 'เช่น เครื่องพิมพ์ชั้น 2 พิมพ์ไม่ออก'}" oninput="draft.desc=this.value" aria-label="${cpl ? 'เรื่องที่ร้องเรียน' : 'ปัญหาที่พบ'}"`, draft.desc)}
     <div class="tools big">${voiceBtn('fDesc', 'พูดแทนพิมพ์')}${photoBtn('create', 'ถ่าย / แนบรูป')}</div>
@@ -1339,7 +1339,7 @@ async function submitCreateCustomer() {
   const siteId = sites.some(s => s.id === $('fSite')?.value) ? $('fSite').value : sites[0]?.id;
   const urgent = !!$('fUrgent')?.checked, cpl = createType === 'complaint';
   // server ตั้งหัวข้อจากบรรทัดแรก ความสำคัญ และเลขงานให้
-  const d = await call('/tickets', { type: createType, desc, urgent, siteId, category: guessCategory(desc), photos: pending.create.map(p => PHOTOS[p]) }, 'fErr');
+  const d = await call('/tickets', { type: createType, desc, urgent, siteId, category: createCat || guessCategory(desc), photos: pending.create.map(p => PHOTOS[p]) }, 'fErr');
   if (!d) return;
   clearPending('create');
   const id = d.id, subject = tickets.find(x => x.id === id)?.subject || desc || 'แจ้งปัญหาพร้อมรูปภาพ';
@@ -1355,10 +1355,10 @@ async function submitCreateCustomer() {
 /* ---------- สร้างงาน (ทีมงาน) ---------- */
 const URGENCY_HELP = { low: 'ไม่เร่งด่วน', medium: 'ใช้งานได้บางส่วน', high: 'กระทบงานหลายคน', urgent: 'ใช้งานไม่ได้ทั้งหมด' };
 const siteOptions = cid => sitesFor(currentUser, cid).map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
-function openCreate(mode = '') {
+function openCreate(mode = '', cat = '') {
   const u = currentUser;
   if (!canCreateTicket(u)) return;
-  if (u.role === 'customer') return openCreateCustomer(mode);
+  if (u.role === 'customer') return openCreateCustomer(mode, cat);
   const firstCust = Object.keys(customers)[0];
   openModal(`<div class="mh"><h3>สร้างงานใหม่</h3>${xbtn()}</div>
     <div class="fl">ประเภท <em>*</em><div class="catpick">${Object.entries(CATEGORIES).map(([k, c]) =>
@@ -1724,22 +1724,28 @@ function startGps(m) {
 function stopGps(m) { clearInterval(gpsTimer); gpsTimer = null; logAudit(users[m.technician], 'สิ้นสุดการแชร์ตำแหน่ง', `ภารกิจ ${m.id}`); }
 
 /* ---------- ผู้ใช้และสิทธิ์ (ผู้ดูแลระบบ) ---------- */
+let userFilter = 'all';
 function renderUsers() {
   const cell = v => v === 1 ? `<span class="yes">${ic('check', 16, 2.6)}</span>` : v === 0 ? '<span class="nope">–</span>' : `<small>${v}</small>`;
-  /* แยกส่วนตามบทบาท — แต่ละส่วนเพิ่ม / แก้ไข / ลบได้ในที่เดียว (ช่างใช้ฟอร์มช่างเดิมที่มีความถนัด) */
   const isTech = r => r === 'technician';
-  const section = r => { const arr = Object.values(users).filter(x => x.role === r && !x.removed);
-    const rows = arr.map(x => `<div class="urow">${avatarHtml(x, 36)}<div style="flex:1;min-width:0"><b>${esc(x.name)}${x.approver ? ' <span class="role-chip">ตัวแทนบริษัท</span>' : ''}</b>
-      <small>${x.customer ? esc(custName(x.customer)) + ' · ' : ''}${esc(x.email || 'ยังไม่มีอีเมล')} · ${esc(x.phone || '')}</small></div>
-      ${ibtn('pen', `แก้ไข ${esc(x.name)}`, isTech(r) ? `openTechForm('${x.id}')` : `openUserForm('${r}','${x.id}')`)}
-      ${x.id === currentUser.id ? '' : ibtn('trash', `ลบ ${esc(x.name)}`, isTech(r) ? `removeTech('${x.id}')` : `removeUser('${x.id}')`)}</div>`).join('');
-    return fold(`u-${r}`, ROLE_LABEL[r], `<div class="card">${rows || '<div class="hint">ยังไม่มี</div>'}</div>`,
-      { count: arr.length, extra: ibtn('plus', `เพิ่ม${ROLE_LABEL[r]}`, isTech(r) ? 'openTechForm()' : `openUserForm('${r}')`) }); };
-  return pageHead('ผู้ใช้และสิทธิ์', 'เฉพาะผู้ดูแลระบบ', '')
-  + ['technician', 'customer', 'team_leader', 'admin'].map(section).join('')
+  const chips = [['all', 'ทั้งหมด'], ...ROLE_ORDER.map(r => [r, ROLE_LABEL[r]])];
+  const list = Object.values(users).filter(x => !x.removed && (userFilter === 'all' || x.role === userFilter))
+    .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || a.name.localeCompare(b.name, 'th'));
+  const rows = list.map(x => `<div class="urow">${avatarHtml(x, 36)}<div style="flex:1;min-width:0"><b>${esc(x.name)}${x.approver ? ' <span class="role-chip">ตัวแทนบริษัท</span>' : ''}</b>
+      <small>${ROLE_LABEL[x.role]}${x.customer ? ' · ' + esc(custName(x.customer)) : ''}${x.team ? ' · ทีม ' + esc(x.team) : ''}${x.email ? ' · ' + esc(x.email) : ''}</small></div>
+      ${ibtn('pen', `แก้ไข ${esc(x.name)}`, isTech(x.role) ? `openTechForm('${x.id}')` : `openUserForm('${x.role}','${x.id}')`)}
+      ${x.id === currentUser.id ? '' : ibtn('trash', `ลบ ${esc(x.name)}`, isTech(x.role) ? `removeTech('${x.id}')` : `removeUser('${x.id}')`)}</div>`).join('');
+  return pageHead('ผู้ใช้และสิทธิ์', 'เฉพาะผู้ดูแลระบบ', ibtn('plus', 'เพิ่มผู้ใช้', 'openRolePick()'))
+  + `<div class="tchips">${chips.map(([k, l]) => `<button class="${userFilter === k ? 'on' : ''}" onclick="userFilter='${k}';renderAll()">${l}</button>`).join('')}</div>`
+  + `<div class="card">${rows || '<div class="hint">ยังไม่มี</div>'}</div>`
   + fold('u-matrix', 'ตารางสิทธิ์ตามบทบาท', `<div class="card tblwrap"><table class="matrix"><thead><tr><th></th>${ROLE_ORDER.map(r => `<th><span class="role-chip">${ROLE_LABEL[r]}</span></th>`).join('')}</tr></thead>
     <tbody>${PERMISSION_MATRIX.map(([p, v]) => `<tr><th>${p}</th>${ROLE_ORDER.map(r => `<td>${cell(v[r])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`, { open: false })
   + `<div class="note">${ic('lock', 18)}<div><b>ผู้ดูแลระบบไม่เห็นตำแหน่ง GPS ของช่าง</b>ข้อมูลตำแหน่งเปิดให้เฉพาะช่างเจ้าของภารกิจและหัวหน้าทีมของเขา เพื่อความเป็นส่วนตัว</div></div>`;
+}
+// เลือกบทบาทก่อนเพิ่มผู้ใช้ (ช่างใช้ฟอร์มช่าง ที่เหลือใช้ฟอร์มผู้ใช้)
+function openRolePick() {
+  openModal(`<div class="mh"><h3>เพิ่มผู้ใช้</h3>${xbtn()}</div>
+    <div class="opts">${[['customer', 'ลูกค้า (พนักงานบริษัท)'], ['technician', 'ช่างเทคนิค'], ['team_leader', 'หัวหน้าทีม'], ['admin', 'ผู้ดูแลระบบ']].map(([r, l]) => `<button class="btn block" onclick="closeModal();${r === 'technician' ? 'openTechForm()' : `openUserForm('${r}')`}">${l}</button>`).join('')}</div>`);
 }
 
 /* เพิ่ม / แก้ไข ลูกค้า · หัวหน้าทีม · ผู้ดูแลระบบ (ช่างใช้ openTechForm) */
