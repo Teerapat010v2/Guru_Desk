@@ -51,7 +51,7 @@ async function api(path, body) {
   try { d = JSON.parse(await r.text() || '{}', reviveDates); } catch { /* ตอบไม่ใช่ JSON */ }
   if (r.ok) return d;
   // session หมดอายุระหว่างใช้งาน: กลับไปหน้าเข้าสู่ระบบ
-  if (r.status === 401 && currentUser) { clearData(); currentUser = null; closeModal(); closeSheet(); renderAll(); }
+  if (r.status === 401 && currentUser) { clearData(); currentUser = null; closeModal(); closeSheet(); renderAll(); toast(API_ERR.not_signed_in); }
   throw new Error(API_ERR[d.error] || 'ทำรายการไม่สำเร็จ ลองใหม่อีกครั้ง');
 }
 
