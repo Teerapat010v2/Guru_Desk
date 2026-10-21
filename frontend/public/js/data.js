@@ -100,7 +100,7 @@ function logAudit(u, action, detail) { auditLog.unshift({ at: new Date(), actor:
 /* บันทึกส่วนที่ยังอยู่ในเครื่องเท่านั้น (งาน/ลูกค้า/ผู้ใช้ อยู่ในฐานข้อมูลแล้ว ไม่เก็บซ้ำในเครื่อง) — คืน false ถ้าพื้นที่เต็ม */
 let lastSaved = null;
 function saveDb() {
-  const s = JSON.stringify({ projects, notifs, joinRequests, missions, PHOTOS,
+  const s = JSON.stringify({ projects, notifs, missions, PHOTOS: Object.fromEntries(Object.entries(PHOTOS).filter(([k]) => !k.includes(':'))),
     nextPhotoNo, nextProjectNo, nextNotifNo, nextJoinNo });
   if (s === lastSaved) return true;   // ไม่มีอะไรเปลี่ยน ไม่ต้องเขียนซ้ำ
   try { localStorage.setItem(DB_KEY, s); lastSaved = s; return true; } catch { return false; }

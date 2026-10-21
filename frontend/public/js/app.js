@@ -235,8 +235,8 @@ function renderThumbs(key) {
   const el = $(`thumbs-${key}`); if (el) { el.innerHTML = thumbsHtml(key); el.hidden = !pending[key].length; }
   const n = $(`pcount-${key}`); if (n) n.textContent = pending[key].length ? ` ${pending[key].length}/${MAX_PHOTOS}` : '';
 }
-// shortcut: ปิดปุ่มแนบรูปไว้ก่อน (รูปยังไม่บันทึกลงฐานข้อมูล ถ้าเปิดไว้รูปจะหายเงียบ ๆ) — เปิดเมื่อเชื่อมตาราง photos แล้ว
-const photoBtn = () => '';
+const photoBtn = (key, label) => `<button type="button" class="tool-btn" onclick="$('file-${key}').click()" aria-label="แนบรูป">${ic('camera', 20, 2)}${label ? `<span>${label}<b id="pcount-${key}">${pending[key].length ? ` ${pending[key].length}/${MAX_PHOTOS}` : ''}</b></span>` : ''}</button>
+  <input type="file" id="file-${key}" accept="image/*" multiple hidden onchange="addPhotos('${key}',this)">`;
 const gallery = ids => ids?.length ? `<div class="gallery">${ids.filter(id => PHOTOS[id]).map(id => `<button type="button" class="gimg" onclick="openLightbox('${id}')" aria-label="ดูรูปขนาดใหญ่"><img src="${PHOTOS[id]}" alt="" loading="lazy"></button>`).join('')}</div>` : '';
 function openLightbox(id) { $('lbImg').src = PHOTOS[id]; $('lightbox').classList.add('open'); syncHistory(); }
 function closeLightbox() { $('lightbox').classList.remove('open'); syncHistory(); }
@@ -443,6 +443,7 @@ function homeCustomer(u) {
   + tiles([
       { icon: 'pen', label: 'แจ้งปัญหา', fn: 'openCreate()' },
       SR && { icon: 'mic', label: 'พูดแจ้งปัญหา', fn: "openCreate('voice')" },
+      { icon: 'camera', label: 'ถ่ายรูปแจ้ง', fn: "openCreate('photo')" },
       { icon: 'chat', label: 'ร้องเรียน / ติชม', fn: "openCreate('complaint')" }])
   + (pendingJoins(u).length ? fold('c-join', 'คำขอเข้าใช้งาน', `<div class="list dense">${pendingJoins(u).map(joinRow).join('')}</div>`, { count: pendingJoins(u).length, hot: true }) : '')
   + (toSign.length ? fold('c-sign', 'รอคุณเซ็นรับ', list(toSign, { quick: true }), { count: toSign.length, hot: true }) : '')
@@ -555,10 +556,8 @@ function ticketListHtml() {
 function setFilter(k) { filter = k; renderAll(); }
 
 /* ---------- สมัครใช้งานจากลิงก์ชวนของตัวแทนบริษัท (?join=รหัสบริษัท) ---------- */
-// shortcut: ลิงก์ใช้รหัสบริษัทตรง ๆ จึงเดาได้ (แต่ยังต้องรออนุมัติ) — ระบบจริงใช้โทเคนสุ่มที่ยกเลิก/หมดอายุได้
-// shortcut: ปิดการสมัครผ่านลิงก์ไว้ก่อน (คำขอสมัครยังไม่บันทึกลงฐานข้อมูล) — เปิดเมื่อเชื่อมตาราง join_requests แล้ว
-let joinCid = null;
-let joinDraft = { name: '', email: '', phone: '', photo: null }, joinDone = false;
+let joinCid = null, joinInfo = null;
+let joinDraft = { name: '', email: '', phone: '', photo: null, password: '' }, joinDone = false;
 const validPhone = p => /^0\d{8,9}$/.test(p.replace(/[\s-]/g, ''));
 console.assert(validPhone('081-234-5678') && validPhone('02 000 0001') && !validPhone('12345') && !validPhone('08123456789012'), 'validPhone');
 /* อีเมล = ชื่อเข้าสู่ระบบ (เก็บเป็นตัวพิมพ์เล็ก) · เบอร์โทรยังเก็บไว้ใช้ติดต่อ */
@@ -570,10 +569,10 @@ const emailErr = (e, exceptId) => !validEmail(e) ? 'อีเมลไม่ถ�
   : Object.values(users).some(x => x.email === e && x.id !== exceptId && !x.removed) ? 'อีเมลนี้มีในระบบแล้ว' : '';
 const approverOf = cid => Object.values(users).find(u => u.customer === cid && u.approver);
 function renderJoin() {
-  const c = customers[joinCid];
+  const c = joinInfo;
   if (!c) return `<div class="join">${empty('ลิงก์สมัครไม่ถูกต้อง — ขอลิงก์ใหม่จากตัวแทนบริษัทของคุณ', 'alert')}</div>`;
   if (joinDone) return `<div class="join"><div class="done"><div class="done-ic">${ic('check', 34, 3)}</div><h3>ส่งคำขอแล้ว</h3>
-    <p class="hint">ตัวแทนของ ${esc(c.name)} จะยืนยันว่าคุณเป็นพนักงานจริง<br>เมื่ออนุมัติแล้วคุณจะเข้าใช้งานได้ทันที</p></div>
+    <p class="hint">ตัวแทนของ ${esc(c.name)} จะยืนยันว่าคุณเป็นพนักงานจริง<br>เมื่อยืนยันแล้วให้เข้าสู่ระบบด้วยอีเมลและรหัสที่ตั้งไว้</p></div>
     <div class="row center"><button class="btn link" onclick="leaveJoin()">กลับหน้าเข้าสู่ระบบ</button></div></div>`;
   return `<div class="join"><div class="row end" style="margin:0 0 6px">${toolBtns()}</div><img class="ph-logo" src="img/logo.png" alt="Guru IT Solution" width="96" height="28">
     <h1>สมัครใช้งาน</h1><p class="hint" style="margin:2px 0 0">${esc(c.name)}</p>
@@ -582,6 +581,7 @@ function renderJoin() {
     <label class="fl">ชื่อ-นามสกุล <em>*</em><input id="jName" maxlength="80" autocomplete="name" value="${esc(joinDraft.name)}" oninput="joinDraft.name=this.value"></label>
     ${emailField('jEmail', joinDraft.email, 'oninput="joinDraft.email=this.value"')}
     <label class="fl">เบอร์โทร <em>*</em><input id="jPhone" type="tel" inputmode="tel" autocomplete="tel" maxlength="15" placeholder="เช่น 081-234-5678" value="${esc(joinDraft.phone)}" oninput="joinDraft.phone=this.value"></label>
+    <label class="fl">รหัสผ่านที่ใช้เข้าระบบ (อย่างน้อย 8 ตัว) <em>*</em><input id="jPw" type="password" autocomplete="new-password" maxlength="200" oninput="joinDraft.password=this.value"></label>
     ${c.sites.length > 1 ? `<label class="fl">ทำงานที่ <em>*</em><select id="jSite">${c.sites.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></label>` : ''}
     <div class="err" id="jErr" role="alert"></div>
     <button class="btn primary block" style="margin-top:18px" onclick="submitJoin()">ส่งคำขอ</button>
@@ -594,34 +594,51 @@ async function joinPhoto(input) {
   try { const id = await compressPhoto(f); if (joinDraft.photo) dropPhoto(joinDraft.photo); joinDraft.photo = id; renderAll(); }
   catch { toast('เปิดไฟล์รูปนี้ไม่ได้'); }
 }
-function submitJoin() {
-  const c = customers[joinCid], name = $('jName').value.trim(), phone = $('jPhone').value.replace(/[\s-]/g, ''), email = normEmail($('jEmail').value);
+// ส่งคำขอสมัคร: เซิร์ฟเวอร์เก็บบัญชีไว้แบบปิดจนกว่าตัวแทนบริษัทจะยอมรับ
+async function submitJoin() {
+  const c = joinInfo, name = $('jName').value.trim(), phone = $('jPhone').value.replace(/[\s-]/g, ''), email = normEmail($('jEmail').value), password = $('jPw').value;
   const siteId = c.sites.some(s => s.id === $('jSite')?.value) ? $('jSite').value : c.sites[0]?.id;
-  const taken = joinRequests.some(r => r.customer === joinCid && (r.phone === phone || r.email === email) && r.status === 'pending');
-  const err = !name ? 'กรุณากรอกชื่อ' : emailErr(email) || (!validPhone(phone) ? 'เบอร์โทรไม่ถูกต้อง (เช่น 0812345678)' : taken ? 'อีเมล/เบอร์นี้ส่งคำขอแล้ว รอตัวแทนบริษัทอนุมัติ' : '');
+  const err = !name ? 'กรุณากรอกชื่อ' : !validEmail(email) ? 'อีเมลไม่ถูกต้อง (เช่น name@company.com)' : !validPhone(phone) ? 'เบอร์โทรไม่ถูกต้อง (เช่น 0812345678)' : pwErr(password, true);
   if (err) { $('jErr').textContent = err; return; }
-  joinRequests.push({ id: `J${nextJoinNo++}`, customer: joinCid, siteId, name, email, phone, photo: joinDraft.photo, at: new Date(), status: 'pending' });
-  notify([approverOf(joinCid)?.id], 'คำขอเข้าใช้งานใหม่', `${name} ขอเข้าใช้งานในนาม ${c.name}`, null, 'home');
-  joinDone = true; renderAll();
+  try {
+    await api(`/join/${encodeURIComponent(joinCid)}`, { name, email, phone, password, siteId, photo: joinDraft.photo ? PHOTOS[joinDraft.photo] : undefined });
+    if (joinDraft.photo) dropPhoto(joinDraft.photo);
+    joinDone = true; renderAll();
+  } catch (e) { $('jErr').textContent = e.message; }
 }
-function leaveJoin(uid) {
-  joinCid = null; joinDone = false; joinDraft = { name: '', email: '', phone: '', photo: null };
+// เปิดหน้าสมัครของบริษัทนั้น (จากการค้นหาหรือลิงก์ ?join=)
+async function pickJoin(cid) {
+  joinCid = cid; joinDone = false; joinDraft = { name: '', email: '', phone: '', photo: null, password: '' };
+  joinInfo = await api(`/join/${encodeURIComponent(cid)}`).catch(() => null);
+  if (!joinInfo) toast('ไม่พบบริษัทนี้ — ตรวจรหัสอีกครั้ง');
+  renderAll();
+}
+function leaveJoin() {
+  joinCid = null; joinInfo = null; joinDone = false; joinDraft = { name: '', email: '', phone: '', photo: null, password: '' };
   history.replaceState(null, '', location.pathname);
-  if (users[uid]) switchUser(uid); else renderAll();
+  renderAll();
 }
+// ค้นหาบริษัทที่หน้าเข้าสู่ระบบ: รหัสตรงตัว หรือชื่อ (พิมพ์ ≥ 3 ตัว) ไม่เกิน 5 ราย
+async function showCompanyMatches() {
+  const q = $('lgCompany').value.trim(), box = $('lgMatches');
+  box.hidden = !q;
+  if (!q) return;
+  const found = await api(`/companies?q=${encodeURIComponent(q)}`).catch(() => []);
+  if ($('lgCompany')?.value.trim() !== q) return;   // ผู้ใช้พิมพ์ต่อแล้ว ไม่ต้องแสดงผลเก่า
+  box.innerHTML = found.length ? found.map(c => `<button class="trow" onclick="pickJoin('${c.id}')">${ic('building', 18, 1.8)}<div class="tr-m"><b>${esc(c.name)}</b><small>แตะเพื่อสมัครในนามบริษัทนี้</small></div>${ic('right', 16, 2)}</button>`).join('')
+    : `<div class="trow jrow"><div class="tr-m"><small>${q.replace(/\s/g, '').length < 3 ? 'พิมพ์รหัส หรือชื่อบริษัทอย่างน้อย 3 ตัวอักษร' : 'ไม่พบบริษัท — ตรวจชื่ออีกครั้ง หรือขอลิงก์จากตัวแทนบริษัท'}</small></div></div>`;
+}
+
 const pendingJoins = u => canApproveMembers(u, u.customer) ? joinRequests.filter(r => r.customer === u.customer && r.status === 'pending') : [];
 const joinRow = r => `<div class="trow jrow"><span class="javatar">${r.photo && PHOTOS[r.photo] ? `<img src="${PHOTOS[r.photo]}" alt="">` : ic('user', 20, 1.8)}</span>
   <div class="tr-m"><b>${esc(r.name)}</b><small>${r.email ? esc(r.email) + ' · ' : ''}<a href="tel:${esc(r.phone)}">${esc(r.phone)}</a> ·${esc(customers[r.customer].sites.find(s => s.id === r.siteId)?.name || '-')} · ${ago(r.at)}</small></div>
   <button class="btn soft sm" onclick="decideJoin('${r.id}',true)">ยอมรับ</button>${ibtn('x', `ปฏิเสธ ${esc(r.name)}`, `decideJoin('${r.id}',false)`)}</div>`;
-function decideJoin(id, ok) {
-  const r = joinRequests.find(x => x.id === id), u = currentUser;
-  if (!r || r.status !== 'pending' || !canApproveMembers(u, r.customer)) return;
-  if (ok && r.email && emailErr(r.email)) return toast(`อนุมัติไม่ได้: ${emailErr(r.email)} — กดปฏิเสธ แล้วให้สมัครด้วยอีเมลอื่น`);
-  r.status = ok ? 'approved' : 'rejected'; r.by = u.id; r.decidedAt = new Date();
-  if (ok) { const nid = `m${nextUserNo++}`; users[nid] = { id: nid, name: r.name, role: 'customer', customer: r.customer, siteId: r.siteId, email: r.email, phone: r.phone, photo: r.photo }; }
-  logAudit(u, `${ok ? 'อนุมัติ' : 'ปฏิเสธ'}สมาชิกใหม่`, `${r.name} · ${custName(r.customer)}`);
-  toast(ok ? `${r.name} เข้าใช้งานได้แล้ว` : 'ปฏิเสธคำขอแล้ว'); renderAll();
+// ตัวแทนบริษัทกดยอมรับ/ปฏิเสธ: เซิร์ฟเวอร์เปิดหรือลบบัญชีที่รอไว้ แล้วโหลดข้อมูลใหม่
+async function decideJoin(id, ok) {
+  if (!await call(`/join-requests/${id}`, { ok })) return;
+  toast(ok ? 'ยอมรับพนักงานแล้ว — เข้าใช้งานได้ทันที' : 'ปฏิเสธคำขอแล้ว'); renderAll();
 }
+
 function openInvite() {
   const url = `${location.origin}${location.pathname}?join=${currentUser.customer}`;
   openModal(`<div class="mh"><h3>ชวนพนักงานเข้าใช้งาน</h3>${xbtn()}</div>
@@ -712,7 +729,10 @@ function renderLogin() {
       <div class="err" id="lgErr" role="alert"></div>
       <button class="btn primary block" id="lgBtn" style="margin-top:16px" onclick="doLogin()">เข้าสู่ระบบ</button>
     ${st ? '' : `<div class="divider">ยังไม่มีบัญชี?</div>
-    <p class="hint" style="margin:6px 0 8px">ขอให้ตัวแทนบริษัทของคุณ หรือผู้ดูแลระบบ Guru IT สร้างบัญชีให้</p>`}
+    <p class="hint" style="margin:6px 0 8px">ค้นหาชื่อบริษัทของคุณ แล้วกรอกข้อมูลสมัคร — ตัวแทนบริษัทจะยืนยันก่อนเข้าใช้งาน</p>
+    <div class="cbox"><input id="lgCompany" type="search" placeholder="รหัส หรือชื่อบริษัท" maxlength="60" aria-label="รหัส หรือชื่อบริษัท" autocomplete="organization" oninput="showCompanyMatches()"></div>
+    <div id="lgMatches" class="list dense" style="margin-top:8px" hidden></div>`}
+
     <button class="btn link block" style="margin-top:22px" onclick="setLoginMode(${!st})">${st ? `${ic('user', 16, 2)}กลับไปเข้าสู่ระบบลูกค้า` : `${ic('tool', 16, 2)}เข้าสู่ระบบสำหรับช่าง / เจ้าหน้าที่`}</button>
   </div>`;
 }
@@ -760,10 +780,18 @@ const pwErr = (v, isNew) => (isNew || v) && v.length < 8 ? 'รหัสผ่�
 // ข้อมูลบัญชีที่ส่งให้ server — ส่งครบทุกช่องเพราะ server บันทึกทั้งแถว
 const userBody = x => ({ name: x.name, email: x.email, role: x.role, phone: x.phone || '', team: x.team || '', skills: x.skills || [],
   customerId: x.customer || '', siteId: x.siteId || '', approver: !!x.approver, removed: !!x.removed });
+let techPhoto = null;
+async function techPhotoPick(input) {
+  const f = input.files[0]; input.value = '';
+  if (!f) return;
+  try { techPhoto = await compressPhoto(f); $('techPh').innerHTML = `<img src="${PHOTOS[techPhoto]}" alt="">`; } catch { toast('เปิดไฟล์รูปนี้ไม่ได้'); }
+}
 function openTechForm(id) {
   if (!canManageTeam(currentUser)) return;
-  const x = id ? users[id] : null;
+  const x = id ? users[id] : null; techPhoto = null;
   openModal(`<div class="mh"><h3>${x ? 'แก้ไขข้อมูลช่าง' : 'เพิ่มช่าง'}</h3>${xbtn()}</div>
+    <button type="button" class="join-photo" onclick="$('techFile').click()"><i id="techPh">${x?.photo && PHOTOS[x.photo] ? `<img src="${PHOTOS[x.photo]}" alt="">` : ic('camera', 28, 1.7)}</i>รูปโปรไฟล์</button>
+    <input type="file" id="techFile" accept="image/*" hidden onchange="techPhotoPick(this)">
     <label class="fl">ชื่อ <em>*</em><input id="tName" maxlength="60" value="${esc(x?.name || '')}"></label>
     ${emailField('tEmail', x?.email)}
     <label class="fl">เบอร์โทร <em>*</em><input id="tPhone" type="tel" inputmode="tel" maxlength="15" value="${esc(x?.phone || '')}"></label>
@@ -780,7 +808,7 @@ async function saveTech(id) {
   const err = !name ? 'กรุณากรอกชื่อ' : emailErr(email, id) || (!validPhone(phone) ? 'เบอร์โทรไม่ถูกต้อง' : phoneTaken(phone, id) ? 'เบอร์นี้มีในระบบแล้ว' : pwErr(pw, !id));
   if (err) { $('tErr').textContent = err; return; }
   const x = id ? users[id] : { role: 'technician', team: u.team || 'T1' };
-  if (!await call(id ? `/users/${id}` : '/users', { ...userBody({ ...x, name, email, phone, skills }), password: pw }, 'tErr')) return;
+  if (!await call(id ? `/users/${id}` : '/users', { ...userBody({ ...x, name, email, phone, skills }), password: pw, photo: techPhoto ? PHOTOS[techPhoto] : undefined }, 'tErr')) return;
   closeModal(); toast(id ? 'บันทึกแล้ว' : `เพิ่ม ${name} แล้ว — เข้าสู่ระบบด้วย ${email}`); renderAll();
 }
 /* ลบ = ปิดบัญชี (เก็บประวัติงานเดิมไว้) และต้องย้ายงาน/โปรเจกต์ที่ค้างก่อน ไม่ให้งานลูกค้าหลุด */
@@ -921,6 +949,7 @@ function renderMe() {
     <div class="theme-pick" role="radiogroup" aria-label="ภาษา">${LANGS.map(([k, l]) => `<button role="radio" aria-checked="${lang === k}" class="${lang === k ? 'on' : ''}" onclick="setLang('${k}')"><span class="sw sw-lang">${k.toUpperCase()}</span>${l}</button>`).join('')}</div>
     <button class="srow" onclick="setDense(${!dense})"><i>${ic(dense ? 'rows' : 'cards', 20, 1.8)}</i><span>มุมมองรายการ<small>${dense ? 'แบบย่อ — แถวเดียว' : 'แบบเต็ม — แสดงรายละเอียด'}</small></span><span class="switch ${dense ? 'on' : ''}" aria-hidden="true"></span></button>
   </div>
+  ${canApproveMembers(u, u.customer) ? `<div class="sgroup"><h4>บริษัทของฉัน</h4>${row('team', 'ชวนพนักงานเข้าใช้งาน', 'openInvite()', 'ส่งลิงก์สมัคร — คุณเป็นผู้อนุมัติ')}</div>` : ''}
   ${isManager(u) ? `<div class="sgroup"><h4>จัดการ</h4>
     ${canManageUsers(u) ? row('team', 'ผู้ใช้และสิทธิ์', "goTab('users')") : ''}
     ${canSeeMissions(u) ? row('pin', 'ติดตามช่างภาคสนาม', "goTab('mission')") : ''}
@@ -1114,7 +1143,7 @@ async function submitResolve(id) {
   if (!canResolveWithReport(u, tk)) return;
   stopVoice();
   const next = document.querySelector('input[name=nextSign]:checked')?.value;
-  if (!await call(`/tickets/${id}/resolve`, { summary, parts: $('rParts').value.trim(), hours: Math.max(0, +$('rHours').value || 0) }, 'rErr')) return;
+  if (!await call(`/tickets/${id}/resolve`, { summary, parts: $('rParts').value.trim(), hours: Math.max(0, +$('rHours').value || 0), photos: pending.report.map(p => PHOTOS[p]) }, 'rErr')) return;
   clearPending('report');
   const no = tickets.find(x => x.id === id)?.report?.no;
   if (next !== 'now') notify(Object.values(users).filter(x => x.customer === tk.customer).map(x => x.id), 'งานเสร็จแล้ว — กรุณาเซ็นรับ', tk.subject, id);
@@ -1265,14 +1294,15 @@ function openCreateCustomer(mode) {
 }
 async function submitCreateCustomer() {
   const u = currentUser, desc = $('fDesc').value.trim(), sites = sitesFor(u, u.customer);
-  if (!desc) { $('fErr').textContent = 'กรุณาพิมพ์หรือพูดปัญหาที่พบ'; $('fDesc').focus(); return; }
+  if (!desc && !pending.create.length) { $('fErr').textContent = 'กรุณาพิมพ์ พูด หรือแนบรูปปัญหาที่พบ'; $('fDesc').focus(); return; }
   stopVoice();
   const siteId = sites.some(s => s.id === $('fSite')?.value) ? $('fSite').value : sites[0]?.id;
   const urgent = !!$('fUrgent')?.checked, cpl = createType === 'complaint';
   // server ตั้งหัวข้อจากบรรทัดแรก ความสำคัญ และเลขงานให้
-  const d = await call('/tickets', { type: createType, desc, urgent, siteId, category: guessCategory(desc) }, 'fErr');
+  const d = await call('/tickets', { type: createType, desc, urgent, siteId, category: guessCategory(desc), photos: pending.create.map(p => PHOTOS[p]) }, 'fErr');
   if (!d) return;
-  const id = d.id, subject = tickets.find(x => x.id === id)?.subject || desc;
+  clearPending('create');
+  const id = d.id, subject = tickets.find(x => x.id === id)?.subject || desc || 'แจ้งปัญหาพร้อมรูปภาพ';
   draft = { desc: '', urgent: false, site: '' };
   notify(dispatchers(), cpl ? 'เรื่องร้องเรียนใหม่' : `งานใหม่${urgent ? ' · ด่วนมาก' : ''}`, `${subject} — ${custName(u.customer)}`, id);
   renderAll();
@@ -1313,8 +1343,9 @@ async function submitCreate() {
   if (err) { $('fErr').textContent = err; return; }
   stopVoice();
   const d = await call('/tickets', { customerId: customer, siteId, location: $('fLoc').value.trim(), subject: subj, category: cat,
-    priority: document.querySelector('input[name=prio]:checked').value, desc: $('fDesc').value.trim() }, 'fErr');
+    priority: document.querySelector('input[name=prio]:checked').value, desc: $('fDesc').value.trim(), photos: pending.create.map(p => PHOTOS[p]) }, 'fErr');
   if (!d) return;
+  clearPending('create');
   notify(dispatchers().filter(x => x !== u.id), 'งานใหม่', `${subj} — ${custName(customer)}`, d.id);
   closeModal(); toast(`สร้างงาน ${d.id} แล้ว`);
   renderAll(); openTicket(d.id);
@@ -1323,16 +1354,17 @@ async function submitCreate() {
 async function addComment(id) {
   const text = $('newCmt').value.trim();
   const vis = currentUser.role === 'customer' ? 'public' : cmtVis;
-  if (!text || !canComment(currentUser, vis)) return;
+  if ((!text && !pending.cmt.length) || !canComment(currentUser, vis)) return;
   stopVoice();
-  if (!await call(`/tickets/${id}/comments`, { text, vis })) return;
-  cmtDraft = '';
+  if (!await call(`/tickets/${id}/comments`, { text, vis, photos: pending.cmt.map(p => PHOTOS[p]) })) return;
+  clearPending('cmt'); cmtDraft = '';
   toast(vis === 'internal' ? 'บันทึกภายในแล้ว' : 'ส่งข้อความแล้ว'); renderAll();
 }
 async function addWorklog(id) {
   const tk = tickets.find(x => x.id === id), text = $('newWl').value.trim();
-  if (!text || !canAddWorklog(currentUser, tk)) return;
-  if (!await call(`/tickets/${id}/worklog`, { text })) return;
+  if ((!text && !pending.wl.length) || !canAddWorklog(currentUser, tk)) return;
+  if (!await call(`/tickets/${id}/worklog`, { text, photos: pending.wl.map(p => PHOTOS[p]) })) return;
+  clearPending('wl');
   toast('บันทึกการทำงานแล้ว'); renderAll();
 }
 
@@ -1755,4 +1787,8 @@ document.addEventListener('keydown', e => {
 });
 applyTheme();
 // เปิดหน้า: ถ้ายังมี session ที่ server ให้เข้าใช้งานต่อเลย ไม่งั้นแสดงหน้าเข้าสู่ระบบ
-loadState().catch(() => {}).finally(() => { renderAll(); if (currentUser) setTimeout(deliverNotifs, 600); });
+loadState().catch(() => {}).finally(() => {
+  const jc = new URLSearchParams(location.search).get('join');
+  if (jc && !currentUser) return pickJoin(jc);   // ลิงก์ชวนพนักงาน
+  renderAll(); if (currentUser) setTimeout(deliverNotifs, 600);
+});

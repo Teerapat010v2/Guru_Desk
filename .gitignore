@@ -6,3 +6,4 @@ note.txt
 # ความลับของ backend (รหัสผ่านฐานข้อมูล) และไลบรารีที่ติดตั้งในเครื่อง
 backend/.env
 backend/node_modules/
+backups/

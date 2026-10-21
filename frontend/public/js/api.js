@@ -28,6 +28,11 @@ const API_ERR = {
   invalid_subject: 'กรุณากรอกหัวข้อ (ไม่เกิน 120 ตัว)',
   invalid_category: 'กรุณาเลือกประเภทปัญหา',
   invalid_priority: 'กรุณาเลือกความสำคัญ',
+  pending_approval: 'บัญชีนี้รอตัวแทนบริษัทยอมรับก่อน — ติดต่อตัวแทนของบริษัทคุณ',
+  join_pending: 'อีเมลหรือเบอร์นี้ส่งคำขอแล้ว รอตัวแทนบริษัทยอมรับ',
+  join_busy: 'มีคำขอค้างอยู่มากเกินไป ลองใหม่ภายหลัง',
+  too_many_attempts: 'ใส่รหัสผิดหลายครั้ง — ติดต่อผู้ดูแลระบบเพื่อรีเซ็ต แล้วลองใหม่',
+  invalid_photo: 'รูปไม่ถูกต้องหรือใหญ่เกินไป',
 };
 
 // เรียก API (มี body = POST) · คืนข้อมูลที่ได้ หรือโยน Error ที่มีข้อความภาษาไทยพร้อมแสดง
@@ -49,7 +54,7 @@ async function api(path, body) {
 
 function clearData() {
   for (const o of [users, customers]) for (const k of Object.keys(o)) delete o[k];
-  tickets = []; auditLog = [];
+  tickets = []; auditLog = []; joinRequests = [];
 }
 
 // โหลดข้อมูลทั้งหมดที่ผู้ใช้คนนี้เห็นได้ แล้วแทนที่ของเดิม (ยังไม่เข้าสู่ระบบ = โยน Error)
@@ -60,8 +65,23 @@ async function loadState() {
   Object.assign(customers, s.customers);
   tickets = s.tickets;
   auditLog = s.audit;
+  joinRequests = s.joinRequests;
   currentUser = users[s.me] || null;
+  await loadPhotos(s.photoIds);
 }
+
+// รูปจากเซิร์ฟเวอร์: โหลดเฉพาะรหัสที่ยังไม่มีในหน่วยความจำ แล้วเก็บใน PHOTOS เหมือนรูปที่เพิ่งแนบ (รูปที่โหลดไม่ได้ข้ามไป)
+async function loadPhotos(ids) {
+  await Promise.all(ids.filter(id => !PHOTOS[id]).map(async id => {
+    try {
+      const r = await fetch(`/api/photos/${encodeURIComponent(id)}`);
+      if (!r.ok) return;
+      const blob = await r.blob();
+      PHOTOS[id] = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); });
+    } catch { /* รูปเดียวโหลดไม่ได้ ไม่ทำให้ข้อมูลทั้งหน้าโหลดไม่ขึ้น */ }
+  }));
+}
+
 
 // ส่งคำสั่งแก้ไข แล้วโหลดข้อมูลล่าสุด · ไม่สำเร็จ: แสดงสาเหตุในช่อง errId (ถ้ามี) หรือ toast แล้วคืน null
 async function call(path, body, errId) {

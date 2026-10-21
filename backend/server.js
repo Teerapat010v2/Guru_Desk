@@ -13,6 +13,7 @@ const CATEGORIES = ['printer', 'network', 'account', 'install', 'repair', 'cctv'
 const PRIORITIES = ['urgent', 'high', 'medium', 'low'];
 const COOKIE = 'gd_session';
 const SESSION_HOURS = 12;
+const failedLogins = new Map();   // อีเมล → จำนวนครั้งที่ใส่รหัสผิดติดกัน
 // ใช้ตรวจรหัสเมื่อไม่มีบัญชี เพื่อให้เวลาตอบใกล้เคียงกัน (กันเดาว่าอีเมลไหนมีบัญชี)
 const DUMMY_HASH = await hashPassword('dummy-password-for-timing');
 
@@ -29,7 +30,7 @@ const readJson = (req, max = 262144) => new Promise(resolve => {
   req.on('end', () => { try { resolve(JSON.parse(s || '{}')); } catch { resolve({}); } });
 });
 const sessionToken = req => (req.headers.cookie ?? '').match(new RegExp(`(?:^|;\\s*)${COOKIE}=([^;]+)`))?.[1] ?? null;
-const cookie = (value, maxAge) => `${COOKIE}=${value}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}`;
+const cookie = (value, maxAge) => `${COOKIE}=${value}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${process.env.COOKIE_SECURE === '1' ? '; Secure' : ''}`;
 const scopeOf = u => (isManager(u) ? 'all' : u.role);
 
 // ลายเซ็นต้องเป็นไฟล์ PNG จริง: มี signature ของ PNG และ chunk IHDR ตามหลัง (ไม่ใช่แค่ข้อความที่หน้าตาคล้าย)
@@ -129,12 +130,22 @@ http.createServer(async (req, res) => {
       const e = String(email ?? '').trim().toLowerCase();
       const pw = String(password ?? '');
       if (e.length > 100 || !EMAIL.test(e)) return send(res, 400, { error: 'invalid_email' });
+      if ((failedLogins.get(e) ?? 0) >= 10) return send(res, 429, { error: 'too_many_attempts' });
       if (!pw || pw.length > 200) return send(res, 400, { error: 'invalid_password' });
 
       const { rows: [u] } = await pool.query(
-        'select id, name, role, password_hash from users where email = $1 and removed = false', [e]);
+        'select id, name, role, password_hash, removed, customer_id from users where email = $1', [e]);
       const ok = await verifyPassword(pw, u?.password_hash ?? DUMMY_HASH);
-      if (!u || !u.password_hash || !ok) return send(res, 401, { error: 'bad_credentials' });
+      if (!u || !u.password_hash || !ok) {
+        failedLogins.set(e, (failedLogins.get(e) ?? 0) + 1);
+        return send(res, 401, { error: 'bad_credentials' });
+      }
+      failedLogins.delete(e);
+      // บัญชีที่ยังรอตัวแทนบริษัทยอมรับ: บอกให้รอเฉพาะเมื่อรหัสถูก จึงไม่เปิดเผยว่าอีเมลไหนมีบัญชี
+      if (u.removed) {
+        const { rowCount } = await pool.query("select 1 from join_requests where email = $1 and customer_id = $2 and status = 'pending'", [e, u.customer_id]);
+        return send(res, rowCount ? 403 : 401, { error: rowCount ? 'pending_approval' : 'bad_credentials' });
+      }
 
       await pool.query('delete from sessions where expires_at < now()');
       const token = newToken();
@@ -457,7 +468,7 @@ http.createServer(async (req, res) => {
       if (!me) return send(res, 401, { error: 'not_signed_in' });
       if (me.role !== 'admin' && !canManageTeam(me)) return send(res, 403, { error: 'forbidden' });
       const id = userUrl[1];
-      const b = await readJson(req);
+      const b = await readJson(req, PHOTO_BODY);
       const name = String(b.name ?? '').trim();
       const email = String(b.email ?? '').trim().toLowerCase();
       const role = String(b.role ?? '');
@@ -471,6 +482,8 @@ http.createServer(async (req, res) => {
       const skills = isTech && Array.isArray(b.skills) ? [...new Set(b.skills.filter(k => CATEGORIES.includes(k)))] : [];
       const approver = role === 'customer' && b.approver === true;   // ตัวแทนบริษัท: อนุมัติพนักงานของบริษัทตัวเองได้
       const removed = b.removed === true;
+      const photos = parsePhotos(b.photo ? [b.photo] : [], 1);
+      if (photos === null) return send(res, 400, { error: 'invalid_photo' });
       if (me.role !== 'admin' && !isTech) return send(res, 403, { error: 'forbidden' });
       if (!name || name.length > 100) return send(res, 400, { error: 'invalid_name' });
       if (email.length > 100 || !EMAIL.test(email)) return send(res, 400, { error: 'invalid_email' });
@@ -490,6 +503,7 @@ http.createServer(async (req, res) => {
             if (x?.role !== 'technician') return 'forbidden';
           }
           const hash = password ? await hashPassword(password) : null;
+          let uid = id;
           if (id) {
             const r = await c.query(`update users set name = $2, email = $3, role = $4, team = $5, customer_id = $6, site_id = $7, approver = $8,
                                        removed = $9, phone = $10, skills = $11, password_hash = coalesce($12, password_hash) where id = $1`,
@@ -500,7 +514,11 @@ http.createServer(async (req, res) => {
           } else {
             await c.query(`insert into users (id, name, email, role, team, customer_id, site_id, approver, phone, skills, password_hash)
                            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-              [`u${randomBytes(4).toString('hex')}`, name, email, role, team, customerId, siteId, approver, phone || null, skills, hash]);
+              [uid = `u${randomBytes(4).toString('hex')}`, name, email, role, team, customerId, siteId, approver, phone || null, skills, hash]);
+          }
+          if (photos.length) {
+            await c.query('delete from photos where id like $1', [`${uid}:u:%`]);
+            await savePhotos(c, uid, 'u', photos);
           }
           await audit(c, me, id ? (removed ? 'ปิดบัญชี' : 'แก้ไขบัญชี') : 'เพิ่มบัญชี', `${email} (${role})${hash && id ? ' ตั้งรหัสใหม่' : ''}`);
           return 'ok';
@@ -673,8 +691,19 @@ http.createServer(async (req, res) => {
       });
       return ok ? send(res, 200, { ok: true }) : send(res, 404, { error: 'not_found' });
     }
-    // สมัครผ่านลิงก์ชวน (?join=รหัสบริษัท) — ยังไม่เข้าสู่ระบบ: GET = ชื่อบริษัทและสถานที่ · POST = ส่งคำขอ (รอตัวแทนบริษัทอนุมัติ)
-    // shortcut: ลิงก์ใช้รหัสบริษัท (สุ่ม 8 หลัก) ตรง ๆ — ระบบจริงใช้โทเคนที่ยกเลิก/หมดอายุได้
+    // ค้นหาบริษัทสำหรับสมัคร (ไม่ต้องเข้าสู่ระบบ): รหัสตรงตัว หรือชื่อที่พิมพ์ ≥ 3 ตัว ไม่เกิน 5 ราย กันคนนอกไล่ดูรายชื่อลูกค้า
+    // shortcut: อ่านรายชื่อลูกค้าทั้งหมดมากรองในหน่วยความจำ — ใช้ได้เมื่อลูกค้าหลักร้อย ถ้าเกินให้ค้นด้วย SQL
+    if (req.method === 'GET' && req.url.startsWith('/api/companies?')) {
+      const q = (new URL(req.url, 'http://x').searchParams.get('q') ?? '').trim();
+      if (q.length > 60) return send(res, 400, { error: 'invalid_text' });
+      const norm = s => s.toLowerCase().replace(/บริษัท|จำกัด|\(มหาชน\)|มหาชน|\s|\./g, '');
+      const key = norm(q);
+      if (!key) return send(res, 200, []);
+      const { rows } = await pool.query('select id, name from customers order by name');
+      return send(res, 200, rows.filter(c => c.id.toLowerCase() === q.toLowerCase() || (key.length >= 3 && norm(c.name).includes(key))).slice(0, 5));
+    }
+    // สมัครผ่านลิงก์ชวนหรือค้นหาบริษัท: ผู้สมัครตั้งรหัสเอง บัญชีจะถูกปิดไว้ก่อนจนกว่าตัวแทนบริษัทจะยอมรับ
+    // shortcut: ลิงก์ใช้รหัสบริษัทตรง ๆ — ระบบจริงควรใช้โทเคนที่ยกเลิก/หมดอายุได้
     const joinUrl = req.url.match(/^\/api\/join\/([\w-]{1,40})$/);
     if (joinUrl) {
       const cid = joinUrl[1];
@@ -685,12 +714,14 @@ http.createServer(async (req, res) => {
         return send(res, 200, { id: co.id, name: co.name, sites });
       }
       if (req.method !== 'POST') return send(res, 404, { error: 'not_found' });
-      const b = await readJson(req, 1_000_000);
+      const b = await readJson(req, PHOTO_BODY);
       const name = String(b.name ?? '').trim(), email = String(b.email ?? '').trim().toLowerCase(), phone = String(b.phone ?? '').replace(/[\s-]/g, '');
+      const password = String(b.password ?? '');
       const photos = parsePhotos(b.photo ? [b.photo] : [], 1);
       if (!name || name.length > 80) return send(res, 400, { error: 'invalid_name' });
       if (email.length > 100 || !EMAIL.test(email)) return send(res, 400, { error: 'invalid_email' });
       if (!/^0\d{8,9}$/.test(phone)) return send(res, 400, { error: 'invalid_phone' });
+      if (password.length < 8 || password.length > 200) return send(res, 400, { error: 'invalid_new_password' });
       if (!photos) return send(res, 400, { error: 'invalid_photo' });
       const out = await inTx(async c => {
         await c.query('select 1 from customers where id = $1 for update', [cid]);   // กันส่งคำขอซ้ำพร้อมกัน
@@ -702,6 +733,10 @@ http.createServer(async (req, res) => {
                                              from join_requests where customer_id = $1 and status = 'pending'`, [cid, email, phone]);
         if (q.dup) return 'join_pending';
         if (q.n >= 50) return 'join_busy';   // กันคนนอกยิงคำขอไม่หยุด
+        if ((await c.query('select 1 from users where email = $1', [email])).rowCount) return 'email_taken';
+        const uid = `u${randomBytes(4).toString('hex')}`;
+        await c.query(`insert into users (id, name, email, role, customer_id, site_id, phone, password_hash, removed)
+                       values ($1, $2, $3, 'customer', $4, $5, $6, $7, true)`, [uid, name, email, cid, site?.id ?? null, phone, await hashPassword(password)]);
         const id = `J${randomBytes(4).toString('hex')}`;
         const [photoId] = await savePhotos(c, id, 'j', photos);
         await c.query('insert into join_requests (id, customer_id, site_id, name, email, phone, photo_id) values ($1, $2, $3, $4, $5, $6, $7)',
@@ -710,40 +745,35 @@ http.createServer(async (req, res) => {
         await notify(c, aps.map(a => a.id), 'คำขอเข้าใช้งานใหม่', `${name} ขอเข้าใช้งานในนาม ${co.name}`, null, 'home');
         return 'ok';
       });
-      const code = { ok: 200, join_pending: 409, join_busy: 429 }[out] ?? 400;
+      const code = { ok: 200, join_pending: 409, join_busy: 429, email_taken: 409 }[out] ?? 400;
       return send(res, code, out === 'ok' ? { ok: true } : { error: out });
     }
-    // ตัวแทนบริษัทอนุมัติ/ปฏิเสธคำขอ · อนุมัติ = สร้างบัญชีลูกค้าพร้อมรหัสผ่านเริ่มต้นที่ตัวแทนตั้งให้
+    // ตัวแทนบริษัทกดยอมรับ/ปฏิเสธคำขอสมัคร: ยอมรับ = เปิดบัญชีที่รอไว้ · ปฏิเสธ = ลบบัญชีที่รอไว้ (อีเมลจะใช้สมัครใหม่ได้)
     const jrUrl = req.method === 'POST' && req.url.match(/^\/api\/join-requests\/(J[0-9a-f]{1,16})$/);
     if (jrUrl) {
       const me = await currentUser(req);
       if (!me) return send(res, 401, { error: 'not_signed_in' });
       const b = await readJson(req);
-      const ok = b.ok === true, password = String(b.password ?? '');
+      const ok = b.ok === true;
       const { rows: [r] } = await pool.query("select * from join_requests where id = $1 and status = 'pending'", [jrUrl[1]]);
       if (!r || !canApproveMembers(me, r.customer_id)) return send(res, 404, { error: 'not_found' });
-      if (ok && (password.length < 8 || password.length > 200)) return send(res, 400, { error: 'invalid_new_password' });
-      try {
-        const done = await inTx(async c => {
-          const u = await c.query("update join_requests set status = $2, decided_by = $3, decided_at = now() where id = $1 and status = 'pending'",
-            [r.id, ok ? 'approved' : 'rejected', me.id]);
-          if (!u.rowCount) return false;
-          if (ok) {
-            const uid = `u${randomBytes(4).toString('hex')}`;
-            await c.query(`insert into users (id, name, email, role, customer_id, site_id, phone, password_hash)
-                           values ($1, $2, $3, 'customer', $4, $5, $6, $7)`, [uid, r.name, r.email, r.customer_id, r.site_id, r.phone, await hashPassword(password)]);
-            // รูปที่แนบตอนสมัครเป็นรูปโปรไฟล์
-            if (r.photo_id) await c.query('insert into photos (id, data) select $1, data from photos where id = $2', [`${uid}:u:${randomBytes(6).toString('hex')}`, r.photo_id]);
-          }
-          const { rows: [co] } = await c.query('select name from customers where id = $1', [r.customer_id]);
-          await audit(c, me, `${ok ? 'อนุมัติ' : 'ปฏิเสธ'}สมาชิกใหม่`, `${r.name} · ${co.name}`);
-          return true;
-        });
-        return done ? send(res, 200, { ok: true }) : send(res, 404, { error: 'not_found' });
-      } catch (err) {
-        if (err.code === '23505') return send(res, 409, { error: 'email_taken' });
-        throw err;
-      }
+      const done = await inTx(async c => {
+        const u = await c.query("update join_requests set status = $2, decided_by = $3, decided_at = now() where id = $1 and status = 'pending'",
+          [r.id, ok ? 'approved' : 'rejected', me.id]);
+        if (!u.rowCount) return false;
+        const { rows: [acc] } = await c.query('select id from users where email = $1 and customer_id = $2 and removed = true', [r.email, r.customer_id]);
+        if (acc && ok) {
+          await c.query('update users set removed = false where id = $1', [acc.id]);
+          // รูปที่แนบตอนสมัครเป็นรูปโปรไฟล์
+          if (r.photo_id) await c.query('insert into photos (id, data) select $1, data from photos where id = $2', [`${acc.id}:u:${randomBytes(6).toString('hex')}`, r.photo_id]);
+        } else if (acc) {
+          await c.query('delete from users where id = $1', [acc.id]);
+        }
+        const { rows: [co] } = await c.query('select name from customers where id = $1', [r.customer_id]);
+        await audit(c, me, `${ok ? 'อนุมัติ' : 'ปฏิเสธ'}สมาชิกใหม่`, `${r.name} · ${co.name}`);
+        return true;
+      });
+      return done ? send(res, 200, { ok: true }) : send(res, 404, { error: 'not_found' });
     }
     send(res, 404, { error: 'not_found' });
   } catch (err) {
