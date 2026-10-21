@@ -14,7 +14,8 @@ const CATEGORIES = ['printer', 'network', 'account', 'install', 'repair', 'cctv'
 const PRIORITIES = ['urgent', 'high', 'medium', 'low'];
 const COOKIE = 'gd_session';
 const SESSION_HOURS = 12;
-const failedLogins = new Map();   // อีเมล → จำนวนครั้งที่ใส่รหัสผิดติดกัน
+const failedLogins = new Map();   // อีเมล → { n: จำนวนครั้งที่ใส่รหัสผิด, at: เวลาครั้งล่าสุด }
+const LOCK_MS = 15 * 60000;
 // ใช้ตรวจรหัสเมื่อไม่มีบัญชี เพื่อให้เวลาตอบใกล้เคียงกัน (กันเดาว่าอีเมลไหนมีบัญชี)
 const DUMMY_HASH = await hashPassword('dummy-password-for-timing');
 
@@ -131,14 +132,15 @@ http.createServer(async (req, res) => {
       const e = String(email ?? '').trim().toLowerCase();
       const pw = String(password ?? '');
       if (e.length > 100 || !EMAIL.test(e)) return send(res, 400, { error: 'invalid_email' });
-      if ((failedLogins.get(e) ?? 0) >= 10) return send(res, 429, { error: 'too_many_attempts' });
+      const lock = failedLogins.get(e);
+      if (lock?.n >= 10 && Date.now() - lock.at < LOCK_MS) return send(res, 429, { error: 'too_many_attempts' });
       if (!pw || pw.length > 200) return send(res, 400, { error: 'invalid_password' });
 
       const { rows: [u] } = await pool.query(
         'select id, name, role, password_hash, removed, customer_id from users where email = $1', [e]);
       const ok = await verifyPassword(pw, u?.password_hash ?? DUMMY_HASH);
       if (!u || !u.password_hash || !ok) {
-        failedLogins.set(e, (failedLogins.get(e) ?? 0) + 1);
+        failedLogins.set(e, { n: (Date.now() - (lock?.at ?? 0) < LOCK_MS ? lock.n : 0) + 1, at: Date.now() });
         return send(res, 401, { error: 'bad_credentials' });
       }
       failedLogins.delete(e);
@@ -172,7 +174,7 @@ http.createServer(async (req, res) => {
       if (!me) return send(res, 401, { error: 'not_signed_in' });
       const staff = isStaff(me);
       const { rows: tks } = await pool.query(`
-        select t.*, to_char(t.planned_on, 'YYYY-MM-DD') as plan_on, to_char(t.planned_from, 'HH24:MI') as plan_from, to_char(t.planned_to, 'HH24:MI') as plan_to from tickets t
+        select t.* from tickets t
         where ($1 = 'all') or ($1 = 'technician' and t.assignee_id = $2) or ($1 = 'customer' and t.customer_id = $3)
         order by t.created_at desc`, [scopeOf(me), me.id, me.customer_id]);
       const ids = tks.map(t => t.id);
@@ -206,7 +208,7 @@ http.createServer(async (req, res) => {
         return {
           id: t.id, type: t.type, customer: t.customer_id, siteId: t.site_id, location: t.location ?? '', subject: t.subject,
           category: t.category, priority: t.priority, status: t.status, assignee: t.assignee_id, version: t.version,
-          plan: t.plan_on ? { date: t.plan_on, from: t.plan_from, to: t.plan_to } : null, missionId: null, photos: P[`${t.id}:t`] ?? [],
+          plan: t.planned_on ? { date: t.planned_on.toLocaleDateString('sv-SE'), from: t.planned_from.slice(0, 5), to: t.planned_to.slice(0, 5) } : null, missionId: null, photos: P[`${t.id}:t`] ?? [],
           history, comments: (C[t.id] ?? []).map(c => ({ by: c.by_user, vis: c.vis, text: c.text, at: c.at, photos: P[`${t.id}:c${c.id}`] ?? [] })),
           worklogs: (W[t.id] ?? []).map(w => ({ by: w.by_user, text: w.text, at: w.at, photos: w.photo_ids })),
           report: r ? {
@@ -491,7 +493,7 @@ http.createServer(async (req, res) => {
       const me = await currentUser(req);
       if (!me) return send(res, 401, { error: 'not_signed_in' });
       // ตัวแทนบริษัท (approver) เพิ่มพนักงานของบริษัทตัวเองได้ทันที — ไม่แก้ไข/ลบ และห้ามเลือกบริษัทอื่น
-      const rep = me.role === 'customer' && !!me.approver && !userUrl[1];
+      const rep = me.role === 'customer' && !!me.approver;
       if (me.role !== 'admin' && !canManageTeam(me) && !rep) return send(res, 403, { error: 'forbidden' });
       const id = userUrl[1];
       const b = await readJson(req, PHOTO_BODY);
@@ -524,7 +526,12 @@ http.createServer(async (req, res) => {
       try {
         const saved = await inTx(async c => {
           if (siteId && !(await c.query('select 1 from sites where id = $1 and customer_id = $2', [siteId, customerId])).rowCount) return 'invalid_site';
-          if (id && me.role !== 'admin') {
+          if (id && rep) {
+            // ตัวแทนแก้ได้เฉพาะพนักงานลูกค้าของบริษัทตัวเอง (ไม่ใช่ตัวแทนคนอื่นหรือตัวเอง)
+            const { rows: [x] } = await c.query('select role, customer_id, approver from users where id = $1', [id]);
+            if (id === me.id || x?.role !== 'customer' || x.customer_id !== me.customer_id || x.approver) return 'forbidden';
+          }
+          if (id && me.role !== 'admin' && !rep) {
             // หัวหน้าทีมแก้ได้เฉพาะบัญชีที่เป็นช่างอยู่แล้ว
             const { rows: [x] } = await c.query('select role from users where id = $1', [id]);
             if (x?.role !== 'technician') return 'forbidden';
