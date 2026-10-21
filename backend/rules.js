@@ -35,5 +35,9 @@ export const canRate = (u, t, s) => t.status === 'closed' && !!s.signed && !s.ra
 // ลูกค้าแจ้งว่างานยังไม่เรียบร้อย: ส่งงานที่รอเซ็นรับกลับไปให้ช่างทำต่อ (server ตรวจแล้วว่าเป็นงานของบริษัทตัวเอง)
 export const canReject = (u, t) => u.role === 'customer' && t.status === 'resolved';
 // พาร์ทเนอร์/สถานที่ และทีมช่าง: หัวหน้าทีมและผู้ดูแล · ผู้ใช้ทุกบทบาท: ผู้ดูแลเท่านั้น
+// โปรเจกต์: หัวหน้าทีม/ผู้ดูแลสร้างได้ · แก้ขั้นตอนได้ทั้งหัวหน้าทีม/ผู้ดูแล และช่างที่รับผิดชอบ (ลูกค้าดูอย่างเดียว)
+export const canEditProject = (u, p) => isManager(u) || (u.role === 'technician' && p.owner_id === u.id);
+// คำขอสมัครจากลิงก์ชวน: ตัวแทนบริษัท (approver) อนุมัติได้เฉพาะคนที่ขอเข้าบริษัทตัวเอง
+export const canApproveMembers = (u, customerId) => u.role === 'customer' && !!u.approver && u.customer_id === customerId;
 export const canManagePartners = isManager;
 export const canManageTeam = isManager;
