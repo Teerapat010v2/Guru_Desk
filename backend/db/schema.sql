@@ -52,7 +52,11 @@ CREATE TABLE tickets (
   status      text NOT NULL CHECK (status IN ('new','assigned','in_progress','pending','resolved','closed')),
   assignee_id text REFERENCES users(id),
   version     integer NOT NULL DEFAULT 1,
-  created_at  timestamptz NOT NULL DEFAULT now()
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  planned_on   date,                       -- วันที่วางแผนไว้ (ดู migrations/002_schedule.sql)
+  planned_from time,
+  planned_to   time,
+  CONSTRAINT tickets_planned_range CHECK (planned_from IS NULL OR planned_to IS NULL OR planned_from < planned_to)
 );
 
 CREATE TABLE ticket_history (

@@ -323,6 +323,7 @@ function actionLabel(tk, to) {
 }
 function actionsFor(u, tk) {
   const acts = [];
+  if (isManager(u) && tk.status !== 'closed') acts.push({ label: tk.plan ? 'แก้ไขวันและเวลา' : 'วางแผนวันและเวลา', short: 'วางแผน', fn: `openPlan('${tk.id}')`, primary: false, icon: 'clock' });
   if (canAssign(u, tk)) acts.push({ label: tk.assignee ? 'ย้ายผู้รับผิดชอบ' : 'มอบหมายช่าง', short: 'มอบหมาย', fn: `openAssign('${tk.id}')`, primary: !tk.assignee, icon: 'user' });
   if (canSignOff(u, tk) && u.role === 'technician') acts.push({ label: 'ให้ลูกค้าเซ็นรับงานบนเครื่องนี้', short: 'ให้ลูกค้าเซ็น', fn: `openSignOff('${tk.id}')`, primary: true, icon: 'pen' });
   (STATUS_FLOW[tk.status] || []).filter(to => canTransition(u, tk, to)).forEach(to => {
@@ -427,6 +428,7 @@ function ticketCard(tk, opts = {}) {
       ${['urgent', 'high'].includes(tk.priority) ? `<span class="prio prio-${tk.priority}">${PRIORITY_LABEL[tk.priority]}</span>` : ''}</div>
     <div class="tc-f">${complaintTag(tk)}<span class="pill p-${tk.status}">${STATUS_LABEL[tk.status]}</span>
       ${isManager(u) ? `<span class="tag ${tk.assignee ? '' : 'warn'}">${ic('user', 13, 2)}${tk.assignee ? esc(nameOf(tk.assignee)) : 'ยังไม่มอบหมาย'}</span>` : `<span class="tag">${esc(siteOf(tk)?.name || '-')}</span>`}
+      ${tk.plan ? `<span class="tag">${ic('clock', 13, 2)}${tk.plan.date.slice(5)} ${tk.plan.from}–${tk.plan.to}</span>` : ''}
       ${tk.rating ? starsHtml(tk.rating.score, 12) : ''}<span class="sp"></span>${qbtn}</div>
   </div>`;
 }
@@ -501,6 +503,8 @@ function homeLead(u) {
       { icon: 'building', label: 'พาร์ทเนอร์', sub: `${allSites().length} สถานที่`, fn: "goTab('partners')" },
       { icon: 'chart', label: 'ผลงาน 7 วัน', sub: `${done7.length} งาน${avg ? ` · ★ ${num(avg)}` : ''}`, fn: "rpt.period='7';rpt.view='summary';goTab('reports')" }])
   + workSection(u)
+  + (() => { const pl = tickets.filter(t => t.plan && isOpen(t)).sort((a, b) => (a.plan.date + a.plan.from) < (b.plan.date + b.plan.from) ? -1 : 1);
+    return fold('l-plan', 'งานที่วางแผนไว้', pl.length ? `<div class="list dense">${pl.map(t => `<button class="trow" onclick="openTicket('${t.id}')"><div class="tr-m"><b>${esc(t.subject)}</b><small>${t.plan.date.slice(5)} ${t.plan.from}–${t.plan.to} · ${esc(t.assignee ? nameOf(t.assignee) : 'ยังไม่มอบหมาย')}</small></div>${ic('right', 16, 2)}</button>`).join('')}</div>` : empty('ยังไม่มีงานที่วางแผนไว้', 'clock'), { count: pl.length, open: pl.length > 0 }); })()
   + fold('l-load', 'ภาระงานของช่าง', `<div class="card">${techs.map(x => {
       const mine = tickets.filter(t => t.assignee === x.id && isOpen(t)), n = mine.length;
       return `<div class="load"><div class="lname"><b>${esc(x.name)}</b><small>${n} งานเปิด${mine.some(t => t.priority === 'urgent') ? ' · <em class="prio-urgent">มีงานด่วน</em>' : ''}</small></div>
@@ -1273,6 +1277,24 @@ async function submitReject(id) {
 }
 
 /* ---------- มอบหมายงาน ---------- */
+// วางแผนงานในปฏิทิน: วันที่ + ช่วงเวลา · ปล่อยวันที่ว่างเพื่อล้างแผน
+function openPlan(id) {
+  const tk = tickets.find(x => x.id === id);
+  if (!isManager(currentUser) || !tk) return;
+  openModal(`<div class="mh"><h3>วางแผน ${tk.id}</h3>${xbtn()}</div>
+    <p class="hint" style="margin:0 0 8px">${esc(tk.subject)}</p>
+    <label class="fl">วันที่ <em>*</em><input id="plDate" type="date" value="${tk.plan?.date || ''}"></label>
+    <div class="two"><label class="fl">เริ่ม <em>*</em><input id="plFrom" type="time" value="${tk.plan?.from || '09:00'}"></label>
+    <label class="fl">ถึง <em>*</em><input id="plTo" type="time" value="${tk.plan?.to || '12:00'}"></label></div>
+    <div class="err" id="plErr" role="alert"></div>
+    <div class="row end"><button class="btn" onclick="closeModal()">ยกเลิก</button>${tk.plan ? `<button class="btn ghost-red" onclick="savePlan('${tk.id}', true)">ล้างแผน</button>` : ''}<button class="btn primary" onclick="savePlan('${tk.id}')">บันทึก</button></div>`);
+}
+async function savePlan(id, clear = false) {
+  const body = clear ? { date: '' } : { date: $('plDate').value, from: $('plFrom').value, to: $('plTo').value };
+  if (!clear && !body.date) { $('plErr').textContent = 'กรุณาเลือกวันที่'; return; }
+  if (!await call(`/tickets/${id}/schedule`, body, 'plErr')) return;
+  closeModal(); toast(clear ? 'ล้างแผนแล้ว' : 'บันทึกแผนแล้ว'); renderAll();
+}
 function openAssign(id) {
   const tk = tickets.find(x => x.id === id);
   if (!canAssign(currentUser, tk)) return;

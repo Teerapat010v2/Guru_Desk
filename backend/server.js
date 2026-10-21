@@ -2,6 +2,7 @@
 import http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import pg from 'pg';
+import { sendReportMail } from './mail.js';
 import { hashPassword, verifyPassword, hashToken, newToken } from './auth.js';
 import { isStaff, isManager, canCreateTicket, canTransition, canReject, canAssign, canAssignTech, canWorklog, canResolve, canSignOff, canRate, canManagePartners, canManageTeam, canEditProject, canApproveMembers } from './rules.js';
 
@@ -171,7 +172,7 @@ http.createServer(async (req, res) => {
       if (!me) return send(res, 401, { error: 'not_signed_in' });
       const staff = isStaff(me);
       const { rows: tks } = await pool.query(`
-        select * from tickets t
+        select t.*, to_char(t.planned_on, 'YYYY-MM-DD') as plan_on, to_char(t.planned_from, 'HH24:MI') as plan_from, to_char(t.planned_to, 'HH24:MI') as plan_to from tickets t
         where ($1 = 'all') or ($1 = 'technician' and t.assignee_id = $2) or ($1 = 'customer' and t.customer_id = $3)
         order by t.created_at desc`, [scopeOf(me), me.id, me.customer_id]);
       const ids = tks.map(t => t.id);
@@ -204,7 +205,8 @@ http.createServer(async (req, res) => {
         const r = R[t.id], history = (H[t.id] ?? []).map(h => ({ from: h.from_status, to: h.to_status, by: h.by_user, at: h.at, reason: h.reason }));
         return {
           id: t.id, type: t.type, customer: t.customer_id, siteId: t.site_id, location: t.location ?? '', subject: t.subject,
-          category: t.category, priority: t.priority, status: t.status, assignee: t.assignee_id, version: t.version, missionId: null, photos: P[`${t.id}:t`] ?? [],
+          category: t.category, priority: t.priority, status: t.status, assignee: t.assignee_id, version: t.version,
+          plan: t.plan_on ? { date: t.plan_on, from: t.plan_from, to: t.plan_to } : null, missionId: null, photos: P[`${t.id}:t`] ?? [],
           history, comments: (C[t.id] ?? []).map(c => ({ by: c.by_user, vis: c.vis, text: c.text, at: c.at, photos: P[`${t.id}:c${c.id}`] ?? [] })),
           worklogs: (W[t.id] ?? []).map(w => ({ by: w.by_user, text: w.text, at: w.at, photos: w.photo_ids })),
           report: r ? {
@@ -309,7 +311,7 @@ http.createServer(async (req, res) => {
       }
     }
     // การกระทำกับงาน: ตรวจสิทธิ์ทุกครั้งที่ server
-    const act = req.method === 'POST' ? req.url.match(/^\/api\/tickets\/(T-\d{1,10})\/(status|assign|comments|worklog|resolve|signoff|rating)$/) : null;
+    const act = req.method === 'POST' ? req.url.match(/^\/api\/tickets\/(T-\d{1,10})\/(status|assign|comments|worklog|resolve|signoff|rating|schedule)$/) : null;
     if (act) {
       const me = await currentUser(req);
       if (!me) return send(res, 401, { error: 'not_signed_in' });
@@ -416,6 +418,12 @@ http.createServer(async (req, res) => {
           await audit(c, me, `${label} ${id}`, name);
           return true;
         });
+        if (done) {
+          // ส่งใบรายงานให้ลูกค้าอัตโนมัติ — ส่งไม่ได้ก็ไม่ทำให้การปิดงานล้ม
+          const { rows: [m] } = await pool.query('select c.email, r.no, r.summary, r.parts, r.hours, t.subject from tickets t join customers c on c.id = t.customer_id join reports r on r.ticket_id = t.id where t.id = $1', [id]);
+          sendReportMail(m?.email, { no: m?.no, subject: m?.subject, summary: m?.summary, parts: m?.parts, hours: m?.hours, signName: name })
+            .catch(err => console.error('mail:', err.message));
+        }
         return done ? send(res, 200, { ok: true }) : send(res, 409, { error: 'status_changed' });
       }
       if (action === 'rating') {
@@ -435,6 +443,22 @@ http.createServer(async (req, res) => {
           'insert into ratings (ticket_id, score, comment, by_user, via) values ($1, $2, $3, $4, $5) on conflict (ticket_id) do nothing',
           [id, score, comment, me.id, via]);
         return r.rowCount ? send(res, 200, { ok: true }) : send(res, 409, { error: 'already_rated' });
+      }
+      if (action === 'schedule') {
+        // วางแผนงานในปฏิทิน: หัวหน้าทีม/ผู้ดูแลเท่านั้น · ไม่ส่งวันที่ = ล้างแผน
+        if (!isManager(me) || t.status === 'closed') return send(res, 403, { error: 'forbidden' });
+        const date = String(body.date ?? ''), from = String(body.from ?? ''), to = String(body.to ?? '');
+        if (!date) {
+          await pool.query('update tickets set planned_on = null, planned_from = null, planned_to = null where id = $1', [id]);
+          return send(res, 200, { ok: true });
+        }
+        if (!/^\d{4}-\d\d-\d\d$/.test(date) || new Date(date + 'T00:00:00Z').toISOString().slice(0, 10) !== date) return send(res, 400, { error: 'invalid_date' });
+        const hm = /^([01]\d|2[0-3]):[0-5]\d$/;
+        if (!hm.test(from) || !hm.test(to)) return send(res, 400, { error: 'invalid_time' });
+        if (from >= to) return send(res, 400, { error: 'invalid_range' });
+        await pool.query('update tickets set planned_on = $2, planned_from = $3, planned_to = $4 where id = $1', [id, date, from, to]);
+        await audit(pool, me, `วางแผนงาน ${id}`, `${date} ${from}-${to}`);
+        return send(res, 200, { ok: true });
       }
       if (action === 'comments') {
         // ลูกค้าโพสต์ได้เฉพาะความเห็นสาธารณะ

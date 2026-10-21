@@ -10,6 +10,7 @@
     "set-password": "node --env-file=.env scripts/set-password.js"
   },
   "dependencies": {
+    "nodemailer": "^6.10.1",
     "pg": "^8.23.1"
   },
   "license": "UNLICENSED"
