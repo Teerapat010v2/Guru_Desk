@@ -750,6 +750,7 @@ function renderLogin() {
     <h1>${st ? 'เข้าสู่ระบบเจ้าหน้าที่' : 'เข้าสู่ระบบ'}</h1><p class="hint" style="margin:2px 0 0">${st ? 'สำหรับช่าง หัวหน้าทีม และผู้ดูแลระบบ' : 'Guru IT Service Desk · สำหรับลูกค้า'}</p>
       <label class="fl">อีเมลที่ลงทะเบียน<input id="lgId" type="email" inputmode="email" autocomplete="username" maxlength="100" placeholder="name@company.com" value="${esc(login.id)}" onkeydown="if(event.key==='Enter')$('lgPw').focus()"></label>
       <label class="fl">รหัสผ่าน<input id="lgPw" type="password" autocomplete="current-password" maxlength="200" onkeydown="if(event.key==='Enter')doLogin()"></label>
+      <p class="hint" style="margin:-6px 0 0">ลืมรหัสผ่าน? ให้ตัวแทนบริษัทหรือผู้ดูแลระบบ Guru IT ตั้งรหัสใหม่ให้</p>
       <div class="err" id="lgErr" role="alert"></div>
       <button class="btn primary block" id="lgBtn" style="margin-top:16px" onclick="doLogin()">เข้าสู่ระบบ</button>
     ${st ? '' : `<div class="divider">ยังไม่มีบัญชี?</div>
