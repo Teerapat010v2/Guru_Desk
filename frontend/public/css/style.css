@@ -777,3 +777,27 @@ textarea,input,select{border-radius:14px}
   .tc-f{margin:4px 0 0 34px;gap:3px}
   .tcard .btn.sm{min-height:28px;padding:2px 8px;font-size:0.6875rem}
 }
+
+/* ทั้งเว็บบนมือถือ — รอบจัดระเบียบ: ระยะ ขนาด และหัวข้อให้โล่งสบายตา */
+@media (max-width:959px){
+  /* หัวข้อส่วน: ไม่ตัดบรรทัด ตัวนับอยู่ข้างหัวข้อ */
+  .sec-h{margin:16px 0 6px}
+  .sec-h h2{font-size:0.9688rem;white-space:nowrap;display:flex;align-items:center;gap:6px}
+  .sec-h button{font-size:0.8125rem;white-space:nowrap;min-height:32px}
+  .cnt{font-size:0.6875rem;padding:0 7px;line-height:1.6}
+  /* แถวในการ์ด: ไม่มีพื้นเทาซ้อน ระยะน้อยลง */
+  .card .trow{padding:8px 0;min-height:0;gap:10px}
+  .card .trow+.trow{border-top:1px solid var(--line)}
+  .card .tr-m b{font-size:0.875rem}
+  .card .tr-m small{font-size:0.7188rem;line-height:1.35}
+  /* ช่องสถานะงาน: แคปซูลเล็กลง */
+  .ttabs button{min-height:30px;padding:3px 10px;font-size:0.8125rem}
+  .fold[data-fold="tk-status"] .fold-h{display:none}
+  .fold[data-fold="tk-status"] .fold-b{display:block}
+  /* การ์ดเมนูลัด */
+  .mcard{padding:10px 12px;margin:8px 0;border-radius:16px}
+  .mcard>i{width:34px;height:34px;border-radius:10px}
+  .mcard b{font-size:0.875rem}
+  .mcard small{font-size:0.7188rem}
+  .card{padding:12px;border-radius:16px;margin-bottom:8px}
+}
