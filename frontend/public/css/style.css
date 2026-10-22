@@ -994,3 +994,8 @@ textarea,input,select{border-radius:14px}
 .dash{padding:4px 12px}
 .dbar{padding:7px 0}
 .dtrack{height:6px;margin-top:4px}
+
+/* ปุ่มในการ์ดข้อมูล (ดำเนินการกับงาน/ช่าง/พาร์ทเนอร์): เล็ก เรียงต่อกันหลายปุ่มต่อแถว */
+.card>.row{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.card>.row .btn{min-height:34px;padding:4px 12px;font-size:0.8125rem;border-radius:10px}
+.card>.row .btn svg{width:15px;height:15px}
