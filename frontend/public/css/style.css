@@ -868,3 +868,11 @@ textarea,input,select{border-radius:14px}
 /* ทางลัดหน้าหลัก: แถวเดียวทุกบทบาทและทุกความกว้าง (เดิมบางช่วงจอเป็น 2 คอลัมน์ ช่องว่างกว้างผิดปกติ) */
 .tiles{grid-template-columns:repeat(auto-fit,minmax(84px,1fr));max-width:560px;gap:8px;margin-bottom:10px}
 .tile{white-space:normal;min-height:0;padding:6px 2px}
+
+/* ทางลัด: จำนวนช่องเท่ากับจำนวนปุ่มเสมอ (--n จาก tiles()) — จอแคบหรือซูมสูงก็ยังเป็นแถวเดียว ป้ายชื่อตัดบรรทัดแทน */
+.tiles,.tiles.compact{grid-template-columns:repeat(var(--n,4),minmax(0,1fr))}
+.tile{min-width:0;overflow-wrap:anywhere}
+.tile i{width:40px;height:40px;border-radius:12px}
+/* ตัวเลือกประเภทงาน (งานบริการ / ร้องเรียน): เตี้ยลง */
+.tchips{margin-bottom:8px}
+.tchips button{padding:6px 14px;min-height:36px;font-size:0.8125rem}

@@ -390,7 +390,7 @@ function pageHead(title, sub = '', actions = '', opt = {}) {
     <div class="ph-t">${opt.logo ? '<button class="logo-btn" onclick="goHome()" aria-label="กลับหน้าหลัก"><img class="ph-logo" src="img/logo.png" alt="Guru IT Solution" width="96" height="28"></button>' : ''}<h1>${title}</h1>${sub ? `<small>${esc(sub)}</small>` : ''}</div>
     <div class="ph-a">${actions}${opt.tools === false ? '' : toolBtns()}<button class="ibtn bell" onclick="openNotifs()" title="การแจ้งเตือน" aria-label="การแจ้งเตือน${unread ? ` ยังไม่อ่าน ${unread}` : ''}">${ic('bell', 22, 1.7)}${unread ? `<b class="tbdg">${unread}</b>` : ''}</button></div></header>`;
 }
-const tiles = (items, cls = '') => `<div class="tiles ${cls}">${items.filter(Boolean).map(t => `<button class="tile" onclick="${t.fn}"><i>${ic(t.icon, 26, 1.7)}${t.badge ? `<b class="tbdg">${t.badge}</b>` : ''}</i><span>${t.label}</span>${t.sub ? `<small>${t.sub}</small>` : ''}</button>`).join('')}</div>`;
+const tiles = (items, cls = '') => `<div class="tiles ${cls}" style="--n:${items.filter(Boolean).length}">${items.filter(Boolean).map(t => `<button class="tile" onclick="${t.fn}"><i>${ic(t.icon, 26, 1.7)}${t.badge ? `<b class="tbdg">${t.badge}</b>` : ''}</i><span>${t.label}</span>${t.sub ? `<small>${t.sub}</small>` : ''}</button>`).join('')}</div>`;
 function textTabs(items, cur, setter) {
   return `<div class="ttabs" role="tablist">${items.map(([k, l, n]) => `<button role="tab" data-k="${k}" aria-selected="${cur === k}" class="${cur === k ? 'on' : ''}" onclick="${setter}('${k}')">${l}${n != null ? `<sup>${n}</sup>` : ''}</button>`).join('')}</div>`;
 }
