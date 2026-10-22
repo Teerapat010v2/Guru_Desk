@@ -528,11 +528,11 @@ function homeLead(u) {
   const techs = assignableTechs(u);
   const done7 = reportRows({ partner: 'all', period: '7' }), avg = avgRating(done7);
   return pageHead('หน้าหลัก', `${teams[u.team]} · ${u.name}`)
-  + tiles([
+  + '<div class="hm-main">' + tiles([
       { icon: 'pin', label: 'ติดตามช่าง', fn: "goTab('mission')" },
       { icon: 'building', label: 'พาร์ทเนอร์', sub: `${allSites().length} สถานที่`, fn: "goTab('partners')" },
       { icon: 'chart', label: 'ผลงาน 7 วัน', sub: `${done7.length} งาน${avg ? ` · ★ ${num(avg)}` : ''}`, fn: "rpt.period='7';rpt.view='summary';goTab('reports')" }])
-  + '<div class="hm-main">' + workSection(u) + '</div><div class="hm-side">'
+  + workSection(u) + '</div><div class="hm-side">'
   + (() => { const pl = tickets.filter(t => t.plan && isOpen(t)).sort((a, b) => (a.plan.date + a.plan.from) < (b.plan.date + b.plan.from) ? -1 : 1);
     const days = [...new Set(pl.map(t => t.plan.date))];
     return fold('l-plan', 'ปฏิทินงาน', pl.length ? days.map(d => `<div class="cal-day"><b>${new Date(d + 'T00:00').toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' })}</b>${pl.filter(t => t.plan.date === d).map(t => `<button class="trow" onclick="openTicket('${t.id}')"><div class="tr-m"><b>${t.plan.from}–${t.plan.to} · ${esc(t.subject)}</b><small>${esc(custName(t.customer))} · ${esc(t.assignee ? nameOf(t.assignee) : 'ยังไม่มอบหมาย')}</small></div>${ic('right', 16, 2)}</button>`).join('')}</div>`).join('') : empty('ยังไม่มีนัดหมาย ตั้งวันและเวลาได้ในหน้ารายละเอียดงาน', 'clock'), { count: pl.length, open: pl.length > 0 }); })()
@@ -544,11 +544,11 @@ function homeLead(u) {
 function homeAdmin(u) {
   const roleCount = r => Object.values(users).filter(x => x.role === r).length;
   return pageHead('หน้าหลัก', `ผู้ดูแลระบบ · ${u.name}`)
-  + tiles([
+  + '<div class="hm-main">' + tiles([
       { icon: 'team', label: 'ผู้ใช้และสิทธิ์', sub: `${Object.keys(users).length} คน`, fn: "goTab('users')" },
       { icon: 'building', label: 'พาร์ทเนอร์', sub: `${allSites().length} สถานที่`, fn: "goTab('partners')" },
       { icon: 'chart', label: 'รายงาน', fn: "rpt.view='summary';goTab('reports')" }])
-  + '<div class="hm-main">' + workSection(u) + '</div><div class="hm-side">'
+  + workSection(u) + '</div><div class="hm-side">'
   + fold('a-roles', 'ผู้ใช้ตามบทบาท', `<div class="rolegrid">${ROLE_ORDER.map(r => `<button class="rg" onclick="goTab('users')"><i>${ic(ROLE_META[r].icon, 20)}</i><b>${roleCount(r)}</b><span>${ROLE_LABEL[r]}</span></button>`).join('')}</div>`, { open: false })
   + fold('a-audit', 'เหตุการณ์ล่าสุด', `<div class="card">${auditRows(auditLog.slice(0, 5))}</div>`, { open: false, count: auditLog.length }) + '</div>';
 }
