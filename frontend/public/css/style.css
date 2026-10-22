@@ -1123,3 +1123,16 @@ textarea,input,select{border-radius:14px}
 .sortbtn{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:4px 12px;border:0;border-radius:999px;background:var(--card);color:var(--text-2);font:inherit;font-size:0.8125rem;cursor:pointer}
 .sortbtn svg{color:var(--primary)}
 .sortbtn:hover{background:var(--card-2)}
+
+/* แถบเครื่องมือหน้างาน: เลือกสถานะ (ดรอปดาวน์) + เรียง แถวเดียว */
+.tlbar{display:flex;align-items:center;gap:8px;margin:2px 0 10px}
+.tlbar .sortbtn{margin-left:auto}
+.statesel{position:relative;display:inline-flex;max-width:60%}
+.statesel select{appearance:none;-webkit-appearance:none;border:0;border-radius:999px;background:var(--card);color:var(--text);font:inherit;font-size:0.8125rem;font-weight:500;min-height:34px;padding:4px 30px 4px 14px;cursor:pointer;max-width:100%;text-overflow:ellipsis}
+.statesel::after{content:'';position:absolute;right:13px;top:50%;width:7px;height:7px;margin-top:-6px;border-right:2px solid var(--text-2);border-bottom:2px solid var(--text-2);transform:rotate(45deg);pointer-events:none}
+.statesel.on select{background:var(--primary-s);color:var(--primary);font-weight:600}
+.statesel.on::after{border-color:var(--primary)}
+.statesel select:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+@media (max-width:959px){.tlbar .ibtn{display:none}}
+@media (min-width:960px){.statesel{display:none}.tlbar .sortbtn{margin-left:0}.tlbar .ibtn{margin-left:auto}}
+.statesel select,.sortbtn{background:var(--card-2)}

@@ -593,8 +593,9 @@ function renderTickets() {
   return pageHead(title, sub, ibtn('search', 'ค้นหา', 'toggleSearch()', showSearch))
   + (showSearch ? `<div class="searchbox">${ic('search', 18)}<input id="q" type="search" placeholder="ค้นหาเลขงาน หัวข้อ สถานที่…" value="${esc(query)}" oninput="query=this.value;$('tlist').innerHTML=ticketListHtml()" aria-label="ค้นหางาน"></div>` : '')
   + (isStaff(u) ? typeChips(u) : '')
-  + fold('tk-status', 'สถานะงาน', `<div class="tbar tbar-tk">${textTabs(filtersFor(u).map(([k, l, f]) => [k, l, vis.filter(f).length]), filter, 'setFilter')}<span class="sp"></span>${densityBtn()}</div>`, { count: filteredTickets().length })
-  + `<div class="sortline"><button type="button" class="sortbtn" onclick="setSort('${sortBy === 'date' ? 'priority' : 'date'}')" aria-label="เรียงงานตาม ${sortBy === 'date' ? 'วันที่แจ้ง' : 'ความสำคัญ'} แตะเพื่อสลับ">${ic('swap', 16, 2)}${sortBy === 'date' ? 'วันที่แจ้ง · เก่าสุดก่อน' : 'ความสำคัญ'}</button></div>`
+  // แถบเครื่องมือแถวเดียว: เลือกสถานะ (ดรอปดาวน์พร้อมจำนวน) ซ้าย · เรียงงาน (ปุ่มเดียวสลับ) ขวา — บนคอมสถานะอยู่ที่เมนูซ้ายแทน
+  + `<div class="tlbar"><label class="statesel ${filter !== 'all' ? 'on' : ''}"><select aria-label="สถานะงาน" onchange="setFilter(this.value)">${filtersFor(u).map(([k, l, fn]) => `<option value="${k}" ${filter === k ? 'selected' : ''}>${l} (${vis.filter(fn).length})</option>`).join('')}</select></label>
+    <button type="button" class="sortbtn" onclick="setSort('${sortBy === 'date' ? 'priority' : 'date'}')" aria-label="เรียงงานตาม ${sortBy === 'date' ? 'วันที่แจ้ง' : 'ความสำคัญ'} แตะเพื่อสลับ">${ic('swap', 16, 2)}${sortBy === 'date' ? 'วันที่แจ้ง · เก่าสุดก่อน' : 'ความสำคัญ'}</button>${densityBtn()}</div>`
   + `<div id="tlist">${ticketListHtml()}</div>`;
 }
 function ticketListHtml() {
