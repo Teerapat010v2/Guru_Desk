@@ -500,10 +500,7 @@ function homeTech(u) {
   const doneMonth = historyRows(u).filter(x => monthKey(x.report.at) === monthKey(new Date())).length;
   return pageHead(`สวัสดี ${u.name}`, teams[u.team], '', { tools: false })
   + `<div class="kpis tech-kpis"><div class="kpi"><b>${todo}</b><span>ต้องทำ</span></div><div class="kpi"><b>${todayN}</b><span>นัดวันนี้</span></div><div class="kpi"><b>${doneMonth}</b><span>เสร็จเดือนนี้</span></div></div>`
-  + (m ? `<button class="mcard" onclick="goTab('mission')"><i>${ic('pin', 22, 1.8)}</i><div><b>ภารกิจที่กำลังทำ</b><small>${MISSION_LABEL[m.status]}</small></div>${ic('right', 18, 2)}</button>` : '')
-  + `<button class="mcard" onclick="goTab('history')"><i>${ic('clock', 22, 1.8)}</i><div><b>ประวัติการทำงาน</b><small>งานที่ทำเสร็จ แยกเป็นรายเดือน</small></div>${ic('right', 18, 2)}</button>`
-  + `<div class="sec-h"><h2>งานของฉัน</h2><button onclick="goTab('tickets')">ดูทั้งหมด ›</button></div>`
-  + workSection(u);
+  + (m ? `<button class="mcard" onclick="goTab('mission')"><i>${ic('pin', 22, 1.8)}</i><div><b>ภารกิจที่กำลังทำ</b><small>${MISSION_LABEL[m.status]}</small></div>${ic('right', 18, 2)}</button>` : '');
 }
 /* ประวัติการทำงานของช่าง: แยกเป็นเดือน เดือนล่าสุดเปิดไว้ */
 function renderHistory() {
@@ -976,6 +973,7 @@ function renderMe() {
   + `<div class="me-card">${avatarHtml(u, 76)}<b>${esc(u.name)}</b><small>${ROLE_LABEL[u.role]} · ${u.customer ? esc(custName(u.customer)) : u.team ? teams[u.team] : 'Guru IT Solution'}</small><small>${esc(u.email || '')}</small>
     <button class="btn soft sm" onclick="openProfile()">${ic('pen', 16, 2)}แก้ไขข้อมูลของฉัน</button></div>
   <div class="sgroup">
+    ${u.role === 'technician' ? row('clock', 'ประวัติการทำงาน', "goTab('history')", 'แยกตามเดือน') : ''}
     ${row('note', 'โน้ตส่วนตัว', 'openNotes()', `${store.get(notesKey(), []).length} โน้ต · เห็นเฉพาะคุณ`)}
     ${row('bell', 'การแจ้งเตือน', 'openNotifs()', !('Notification' in window) ? 'เบราว์เซอร์นี้แจ้งเตือนได้เฉพาะในแอป' : Notification.permission === 'granted' ? 'เด้งเตือนบนเครื่องนี้: เปิดอยู่' : 'แตะเพื่อเปิดเด้งเตือนบนเครื่องนี้')}
   </div>
