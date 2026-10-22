@@ -980,3 +980,17 @@ textarea,input,select{border-radius:14px}
 /* ตัวเลือกแดชบอร์ด: แถวเดียวเลื่อนได้ (5 ตัวเลือก ไม่ให้เหลือปุ่มเดี่ยวตกบรรทัด) */
 .tchips.dim{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:8px}
 .tchips.dim button{flex:0 0 auto;padding:6px 16px;min-height:36px}
+
+/* หน้าสรุปผล: ตัวเลือกช่วงเวลาเป็นชิปเล็ก ตัวเลขสรุป 4 ช่องแถวเดียว ทุกอย่างเล็กลง */
+.rfilter{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0 10px}
+.rfilter .tchips{margin:0;flex:0 1 auto;display:flex;flex-wrap:nowrap;overflow-x:auto;gap:6px}
+.rfilter .tchips button,.tchips.dim button{flex:0 0 auto;min-height:32px;padding:4px 12px;font-size:0.8125rem}
+.rfilter .psel{min-height:32px;padding:2px 28px 2px 12px;font-size:0.8125rem;border:0;border-radius:999px;background-color:var(--card);max-width:100%}
+.kpis.kpis4{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:6px}
+.kpis4 .kpi{padding:8px 2px;border-radius:12px}
+.kpis4 .kpi b{font-size:1.0625rem}
+.kpis4 .kpi span{font-size:0.75rem}
+.tchips.dim{margin:8px 0 6px}
+.dash{padding:4px 12px}
+.dbar{padding:7px 0}
+.dtrack{height:6px;margin-top:4px}

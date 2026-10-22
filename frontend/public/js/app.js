@@ -1687,22 +1687,21 @@ function renderReports() {
   const rows = reportRows(), groups = byPartner(rows), avg = avgRating(rows);
   const tot = { n: rows.length, signed: rows.filter(x => x.report.signoff).length, waiting: rows.filter(x => x.status === 'resolved').length, hours: rows.reduce((s, x) => s + (+x.report.hours || 0), 0) };
   return head + tabs + `
-  <div class="filters">
-    <label><span>พาร์ทเนอร์</span><select onchange="rpt.partner=this.value;renderAll()"><option value="all">ทุกพาร์ทเนอร์</option>${Object.values(customers).map(c => `<option value="${c.id}" ${rpt.partner === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
-    <label><span>ช่วงเวลา</span><select onchange="rpt.period=this.value;renderAll()">${Object.entries(PERIODS).map(([k, v]) => `<option value="${k}" ${rpt.period === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
+  <div class="rfilter">
+    <div class="tchips pr" role="tablist" aria-label="ช่วงเวลา">${Object.entries(PERIODS).map(([k, v]) => `<button role="tab" aria-selected="${rpt.period === k}" class="${rpt.period === k ? 'on' : ''}" onclick="rpt.period='${k}';renderAll()">${v.replace('ล่าสุด', '')}</button>`).join('')}</div>
+    <select class="psel" aria-label="พาร์ทเนอร์" onchange="rpt.partner=this.value;renderAll()"><option value="all">ทุกพาร์ทเนอร์</option>${Object.values(customers).map(c => `<option value="${c.id}" ${rpt.partner === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
   </div>
-  <div class="kpis">
-    <div class="kpi"><b>${tot.n}</b><span>งานที่ทำเสร็จ</span></div>
-    <div class="kpi"><b>${tot.signed}</b><span>เซ็นรับแล้ว</span></div>
-    <div class="kpi"><b>${tot.waiting}</b><span>รอเซ็นรับ</span></div>
+  <div class="kpis kpis4">
+    <div class="kpi"><b>${tot.n}</b><span>เสร็จ</span></div>
+    <div class="kpi"><b>${tot.waiting}</b><span>รอเซ็น</span></div>
     <div class="kpi"><b>${num(tot.hours)}</b><span>ชั่วโมง</span></div>
-    <div class="kpi"><b>${avg ? `★ ${num(avg)}` : '–'}</b><span>ความพึงพอใจ</span></div>
+    <div class="kpi"><b>${avg ? `★ ${num(avg)}` : '–'}</b><span>พึงพอใจ</span></div>
   </div>
   ${dashHtml(rows)}
   ${fold('r-list', 'งานที่ทำเสร็จ', rows.length ? `<div class="card">${rows.map(x => `<div class="rrow">
       <div class="rr-main" onclick="openTicket('${x.id}')"><div class="rr-top"><span class="mono">${x.report.no}</span><span>${fmtD(x.report.at)}</span></div>
         <b>${esc(x.subject)}</b><small>${esc(custName(x.customer))} · ${esc(siteLabel(x))} · ${esc(nameOf(x.report.by))} · ${hrs(x.report.hours)}</small>${signBadge(x)} ${x.rating ? starsHtml(x.rating.score, 12) : ''}</div>
-      <button class="ibtn" onclick="openReport('${x.id}')" aria-label="ดูใบรายงาน ${x.report.no}" title="ดูใบรายงาน">${ic('doc', 20, 1.8)}</button></div>`).join('')}</div>` : empty('ยังไม่มีงานที่ทำเสร็จในช่วงนี้', 'doc'), { count: rows.length })}`;
+      <button class="ibtn" onclick="openReport('${x.id}')" aria-label="ดูใบรายงาน ${x.report.no}" title="ดูใบรายงาน">${ic('doc', 20, 1.8)}</button></div>`).join('')}</div>` : empty('ยังไม่มีงานที่ทำเสร็จในช่วงนี้', 'doc'), { count: rows.length, open: false })}`;
 }
 function openSummaryDoc() {
   if (!canSeeSummaryReport(currentUser)) return;
