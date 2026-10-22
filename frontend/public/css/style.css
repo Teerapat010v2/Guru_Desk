@@ -1033,3 +1033,29 @@ textarea,input,select{border-radius:14px}
   .tile span{line-height:1.25;overflow-wrap:normal}
   .tile small{margin-top:-4px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:0.75rem}
 }
+
+/* ฟอร์มในหน้าต่าง (ทำเสร็จ/ติดต่อ/แก้ไข ฯลฯ): เล็กลง ระยะแน่นขึ้น ปุ่มไมค์-กล้องอยู่แถวเดียว */
+#modalCard .mh{margin-bottom:6px}
+#modalCard .mh h3{font-size:1.125rem}
+#modalCard .hint,#modalCard .mh+p{font-size:0.8125rem;line-height:1.4}
+#modalCard .fl{margin-top:10px;font-size:0.8125rem}
+#modalCard .fl :is(input:not([type=checkbox]):not([type=radio]),select){min-height:42px;padding:8px 12px;font-size:0.9375rem}
+#modalCard textarea{min-height:0;padding:8px 12px;font-size:0.9375rem}
+#modalCard .tools{display:flex;flex-wrap:nowrap;gap:6px;margin:6px 0 0}
+#modalCard .tool-btn{min-height:36px;padding:4px 12px;font-size:0.8125rem;white-space:nowrap;gap:6px}
+#modalCard .opt{padding:8px 10px}
+#modalCard .opt b{font-size:0.875rem}
+#modalCard .opt small{font-size:0.75rem}
+#modalCard .row.end{margin-top:12px}
+#modalCard .row.end .btn{min-height:40px;padding:6px 16px}
+
+/* เช็กลิสต์ MA ในฟอร์ม: แถวละรายการ ช่องติ๊ก+ชื่อซ้าย หมายเหตุขวา (เครื่องผู้ใช้: ชื่อซ้าย ติ๊ก 3 ช่องขวา) */
+#modalCard .ma-box{padding:8px 10px;gap:6px}
+#modalCard .ma-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:8px;align-items:center}
+#modalCard .ma-row label{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:8px;margin:0;font-size:0.875rem;white-space:nowrap}
+#modalCard .ma-row input[type=checkbox]{width:20px;height:20px;min-height:0;margin:0;flex:none}
+#modalCard .ma-row input:not([type=checkbox]){min-height:36px;padding:4px 10px;font-size:0.875rem;width:100%}
+#modalCard .ma-chk{display:flex;flex-wrap:nowrap;gap:10px;justify-content:flex-end}
+#modalCard .ma-chk label{font-size:0.75rem;gap:4px}
+#modalCard .ma-row:has(.ma-chk){grid-template-columns:minmax(0,1fr) auto}
+#modalCard .ma-chk{gap:8px}

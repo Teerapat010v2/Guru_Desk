@@ -1244,7 +1244,7 @@ function openResolve(id) {
   openModal(`<div class="mh"><h3>ทำเสร็จ — ออกใบรายงาน</h3>${xbtn()}</div>
     <p class="hint" style="margin:0 0 4px">${tk.id} · ${esc(tk.subject)}<br>ลูกค้าจะเห็นใบรายงานนี้และใช้เซ็นรับงาน — เขียนให้ลูกค้าเข้าใจ</p>
     <label class="fl" for="rSum">สรุปงานที่ทำ <em>*</em></label>
-    ${voiceBox('rSum', 'rows="3" placeholder="เช่น เปลี่ยนลูกกลิ้งดึงกระดาษ ทดสอบพิมพ์ 20 แผ่นปกติ"')}
+    ${voiceBox('rSum', 'rows="2" placeholder="เช่น เปลี่ยนลูกกลิ้งดึงกระดาษ ทดสอบพิมพ์ 20 แผ่นปกติ"')}
     <div class="tools">${voiceBtn('rSum', 'พูดแทนพิมพ์')}${photoBtn('report', 'รูปหลังซ่อม')}</div>
     ${thumbsBox('report')}
     <div class="two"><label class="fl">อุปกรณ์ / อะไหล่ที่ใช้<input id="rParts" placeholder="ไม่มีให้เว้นว่าง"></label>
