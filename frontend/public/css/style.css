@@ -938,3 +938,17 @@ textarea,input,select{border-radius:14px}
   .pg-projects .list,.pg-team .list{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:8px}
 }
 @media (min-width:1500px){ .pg-home{column-count:3} }
+
+/* คอมพิวเตอร์ รอบแก้: หน้าหลักหัวหน้า/ผู้ดูแล = งานซ้าย (หลัก) · แผงข้างขวา · ทางลัดเป็นการ์ดชิดซ้าย */
+@media (min-width:960px){
+  .pg-home{column-count:auto;column-gap:normal;max-width:760px;margin-left:0}
+  .pg-home .phead{column-span:none}
+  .pg-home>*{break-inside:auto}
+  .pg-home:has(.hm-side){display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:0 32px;max-width:1080px;align-items:start}
+  .pg-home:has(.hm-side)>.phead,.pg-home:has(.hm-side)>.tiles{grid-column:1/-1}
+  .hm-side{position:sticky;top:12px}
+  .hm-side .fold:first-child{margin-top:0}
+  .tiles,.tiles.compact{grid-template-columns:repeat(var(--n,3),minmax(0,170px));justify-content:start;gap:12px;max-width:none;margin-bottom:18px}
+  .tile,.tiles.compact .tile{background:var(--card);border-radius:16px;box-shadow:var(--shadow-s);padding:14px 8px;min-height:92px}
+  .tile:hover{background:var(--card-2)}
+}
