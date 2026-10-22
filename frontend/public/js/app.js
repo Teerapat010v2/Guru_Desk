@@ -94,7 +94,7 @@ let query = '', showSearch = false;
 let cmtVis = 'public';
 let cmtDraft = '';
 let gpsTimer = null;
-let rpt = { partner: 'all', period: '30', view: 'summary' };
+let rpt = { partner: 'all', period: '30', view: 'summary', dim: 'partner' };
 let pfilter = 'all', pquery = '';
 let draft = { desc: '', urgent: false, site: '' };   // ร่างแจ้งปัญหาของลูกค้า — ไม่หายเมื่อปิดฟอร์มโดยไม่ตั้งใจ
 const pending = { create: [], cmt: [], report: [], wl: [] };  // รูปที่เลือกไว้แต่ยังไม่ส่ง
@@ -531,7 +531,7 @@ function homeLead(u) {
   + '<div class="hm-main">' + tiles([
       { icon: 'pin', label: 'ติดตามช่าง', fn: "goTab('mission')" },
       { icon: 'building', label: 'พาร์ทเนอร์', sub: `${allSites().length} สถานที่`, fn: "goTab('partners')" },
-      { icon: 'chart', label: 'ผลงาน 7 วัน', sub: `${done7.length} งาน${avg ? ` · ★ ${num(avg)}` : ''}`, fn: "rpt.period='7';rpt.view='summary';goTab('reports')" }])
+      { icon: 'chart', label: 'สรุปผล', sub: `${done7.length} งานใน 7 วัน${avg ? ` · ★ ${num(avg)}` : ''}`, fn: "rpt.view='summary';goTab('reports')" }])
   + '</div><div class="hm-side">'
   + (() => { const pl = tickets.filter(t => t.plan && isOpen(t)).sort((a, b) => (a.plan.date + a.plan.from) < (b.plan.date + b.plan.from) ? -1 : 1);
     const days = [...new Set(pl.map(t => t.plan.date))];
@@ -1009,7 +1009,7 @@ function renderMe() {
     ${canManageUsers(u) ? row('team', 'ผู้ใช้และสิทธิ์', "goTab('users')") : ''}
     ${canSeeMissions(u) ? row('pin', 'ติดตามช่างภาคสนาม', "goTab('mission')") : ''}
     ${row('building', 'พาร์ทเนอร์และสถานที่', "goTab('partners')")}
-    ${row('chart', 'รายงานผลงาน', "rpt.view='summary';goTab('reports')")}
+    ${row('chart', 'สรุปผล', "rpt.view='summary';goTab('reports')")}
     ${row('shield', 'บันทึกตรวจสอบ', "rpt.view='audit';goTab('reports')")}</div>` : ''}
   <div class="sgroup"><h4>บัญชี</h4>${row('lock', 'เปลี่ยนรหัสผ่าน', 'openPassword()')}${row('logout', 'ออกจากระบบ', 'logout()')}</div>
   <p class="about">${footLogo}</p>`;
@@ -1658,11 +1658,24 @@ function byPartner(rows) {
   return Object.values(g).sort((a, b) => b.n - a.n);
 }
 function setRptView(v) { rpt.view = v; renderAll(); }
+/* แดชบอร์ดสรุปผล: เลือกดูแยกตามพาร์ทเนอร์ / ช่าง / หมวดงาน / สถานะ เป็นแท่งเทียบกัน */
+const DASH = [['partner', 'พาร์ทเนอร์'], ['tech', 'ช่าง'], ['cat', 'หมวดงาน'], ['status', 'สถานะ']];
+function setRptDim(k) { rpt.dim = k; renderAll(); }
+function dashGroups(rows) {
+  const g = {}, add = (k, label, h) => { const o = g[k] ||= { label, n: 0, h: 0 }; o.n++; o.h += h; };
+  if (rpt.dim === 'status') visibleTickets(currentUser).filter(x => rpt.partner === 'all' || x.customer === rpt.partner).forEach(x => add(x.status, STATUS_LABEL[x.status], 0));
+  else rows.forEach(x => { const h = +x.report.hours || 0;
+    if (rpt.dim === 'tech') add(x.report.by, nameOf(x.report.by), h); else if (rpt.dim === 'cat') add(catOf(x), CATEGORIES[catOf(x)].label, h); else add(x.customer, custName(x.customer), h); });
+  return Object.values(g).sort((a, b) => b.n - a.n);
+}
+const dashHtml = rows => { const d = dashGroups(rows), max = Math.max(1, ...d.map(x => x.n));
+  return `<div class="tchips dim" role="tablist" aria-label="เลือกข้อมูล">${DASH.map(([k, l]) => `<button role="tab" aria-selected="${rpt.dim === k}" class="${rpt.dim === k ? 'on' : ''}" onclick="setRptDim('${k}')">${l}</button>`).join('')}</div>
+  <div class="card dash">${d.length ? d.map(x => `<div class="dbar"><div class="dl"><b>${esc(x.label)}</b><small>${x.n} งาน${x.h ? ' · ' + hrs(x.h) : ''}</small></div><div class="dtrack"><i style="width:${Math.round(x.n / max * 100)}%"></i></div></div>`).join('') : empty('ยังไม่มีข้อมูลในช่วงนี้', 'chart')}</div>`; };
 function renderReports() {
   const u = currentUser;
-  const head = pageHead('รายงาน', rpt.view === 'audit' ? 'ทุกการกระทำถูกบันทึกและแก้ไขไม่ได้' : PERIODS[rpt.period],
+  const head = pageHead('สรุปผล',rpt.view === 'audit' ? 'ทุกการกระทำถูกบันทึกและแก้ไขไม่ได้' : PERIODS[rpt.period],
     rpt.view === 'summary' ? ibtn('print', 'พิมพ์รายงานสรุป', 'openSummaryDoc()') + ibtn('download', 'ดาวน์โหลด CSV', 'downloadCsv()') : '');
-  const tabs = canSeeAudit(u) ? `<div class="tbar">${textTabs([['summary', 'สรุปผลงาน'], ['audit', 'บันทึกตรวจสอบ']], rpt.view, 'setRptView')}</div>` : '';
+  const tabs = canSeeAudit(u) ? `<div class="tbar">${textTabs([['summary', 'แดชบอร์ด'], ['audit', 'บันทึกตรวจสอบ']], rpt.view, 'setRptView')}</div>` : '';
   if (rpt.view === 'audit') return head + tabs + `<div class="card">${auditRows(auditLog.slice(0, 40))}</div>`;
   const rows = reportRows(), groups = byPartner(rows), avg = avgRating(rows);
   const tot = { n: rows.length, signed: rows.filter(x => x.report.signoff).length, waiting: rows.filter(x => x.status === 'resolved').length, hours: rows.reduce((s, x) => s + (+x.report.hours || 0), 0) };
@@ -1678,10 +1691,7 @@ function renderReports() {
     <div class="kpi"><b>${num(tot.hours)}</b><span>ชั่วโมง</span></div>
     <div class="kpi"><b>${avg ? `★ ${num(avg)}` : '–'}</b><span>ความพึงพอใจ</span></div>
   </div>
-  ${rpt.partner === 'all' && groups.length ? fold('r-partner', 'แยกตามพาร์ทเนอร์', `<div class="card">${groups.map(g => { const a = avgRating(g.rows);
-    return `<button class="prow" onclick="rpt.partner='${g.id}';renderAll()">
-      <i>${ic('building', 18)}</i><div><b>${esc(custName(g.id))}</b><small>${g.n} งาน · ${g.sites.size} สถานที่ · ${hrs(g.hours)}${a ? ` · ★ ${num(a)}` : ''}</small></div>
-      <span class="sbadge s-signed">${g.signed}/${g.n} เซ็นแล้ว</span></button>`; }).join('')}</div>`, { count: groups.length, open: false }) : ''}
+  ${dashHtml(rows)}
   ${fold('r-list', 'งานที่ทำเสร็จ', rows.length ? `<div class="card">${rows.map(x => `<div class="rrow">
       <div class="rr-main" onclick="openTicket('${x.id}')"><div class="rr-top"><span class="mono">${x.report.no}</span><span>${fmtD(x.report.at)}</span></div>
         <b>${esc(x.subject)}</b><small>${esc(custName(x.customer))} · ${esc(siteLabel(x))} · ${esc(nameOf(x.report.by))} · ${hrs(x.report.hours)}</small>${signBadge(x)} ${x.rating ? starsHtml(x.rating.score, 12) : ''}</div>

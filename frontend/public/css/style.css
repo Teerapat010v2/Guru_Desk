@@ -965,3 +965,14 @@ textarea,input,select{border-radius:14px}
   .hm-side .empty{padding:14px 0}
   .hm-side .fold{margin-top:0;margin-bottom:12px}
 }
+
+/* แดชบอร์ดสรุปผล: แท่งเทียบกัน */
+.tchips.dim{margin:10px 0 8px}
+.dash{padding:6px 14px}
+.dbar{padding:9px 0}
+.dbar+.dbar{border-top:1px solid var(--line)}
+.dbar .dl{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.dbar .dl b{font-size:0.875rem;font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dbar .dl small{color:var(--text-2);white-space:nowrap;font-size:0.75rem}
+.dtrack{height:8px;border-radius:99px;background:var(--card-2);margin-top:6px;overflow:hidden}
+.dtrack i{display:block;height:100%;background:var(--primary);border-radius:99px;min-width:4px}
