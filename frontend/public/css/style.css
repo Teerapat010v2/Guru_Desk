@@ -691,3 +691,27 @@ label.fl+.voicebox{margin-top:6px}
 .sec-h{display:flex;align-items:center;justify-content:space-between;margin:22px 0 6px}
 .sec-h h2{margin:0;font-size:1.0625rem;font-weight:500}
 .sec-h button{background:none;border:0;color:var(--primary);font:inherit;font-size:.875rem;min-height:44px;padding:0 4px;cursor:pointer}
+
+/* ===== สไตล์กลางแบบ Huawei / Hik: พื้นเทาอ่อน การ์ดมน หัวข้อใหญ่ ชิปแคปซูล ไอคอนในกรอบสีอ่อน ===== */
+:root,:root[data-theme=light]{--bg:#F2F4F7;--card-2:#F3F5F8;--radius:20px}
+.ph-t h1{font-size:1.75rem;font-weight:600;letter-spacing:-.01em;line-height:1.25}
+.phead{padding-top:calc(env(safe-area-inset-top,0px) + 14px)}
+/* ชิปตัวกรอง: แคปซูล เลือก = พื้นอ่อนสีหลัก */
+.tchips{background:none;padding:0;gap:8px;margin-bottom:12px}
+.tchips button{flex:0 0 auto;border-radius:999px;background:var(--card-2);color:var(--text-2);padding:8px 16px}
+.tchips button.on{background:var(--primary-s);color:var(--primary);font-weight:600}
+/* การ์ดและรายการ: มนขึ้น ไม่มีเส้นขอบ ช่องไฟโปร่ง */
+.tcard{border-radius:20px;padding:16px}
+.list{gap:12px}
+.card{border-radius:20px}
+/* ทางลัด: ไอคอนอยู่ในกรอบสีอ่อน */
+.tile i{display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:14px;background:var(--primary-s)}
+.tiles.compact .tile{min-height:92px}
+/* ช่องกรอกและปุ่มหลัก */
+textarea,input,select{border-radius:14px}
+.btn.primary.block{border-radius:999px}
+/* ปุ่มลอยเงานุ่ม */
+.fab{box-shadow:0 10px 22px -8px rgba(6,104,211,.55)}
+/* เมนูล่าง: ตัวที่เลือกมีพื้นแคปซูลหลังไอคอน */
+.tab.on i{background:var(--primary-s);border-radius:999px;padding:2px 16px}
+.tab i{display:flex;align-items:center;justify-content:center;padding:2px 16px}
