@@ -857,3 +857,10 @@ textarea,input,select{border-radius:14px}
 @media (max-width:959px){
   .tag,.pill,.sbadge,.cp,.cp span,.st-who,.cnt,.card .tr-m small,.mcard small,.srow small,.tc-t small,.status-card small{font-size:0.75rem}
 }
+
+/* หน้างาน: ไม่เว้นช่องว่างเหนือแถบสถานะ (หัวข้อพับถูกซ่อนบนมือถือแล้ว) */
+@media (max-width:959px){
+  .fold[data-fold="tk-status"]{margin-top:2px}
+  .fold[data-fold="tk-status"] .fold-b{padding-top:0}
+  .tbar{margin:0 0 8px}
+}
