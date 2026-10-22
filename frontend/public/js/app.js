@@ -442,7 +442,7 @@ function ticketCard(tk, opts = {}) {
   return `<div class="tcard" onclick="openTicket('${tk.id}')" role="button" tabindex="0">
     <div class="tc-h">${ticketIcon(tk)}<div class="tc-t"><b>${esc(tk.subject)}</b><small>${tk.id} · ${esc(custName(tk.customer))}</small></div>
       ${['urgent', 'high'].includes(tk.priority) ? `<span class="prio prio-${tk.priority}">${PRIORITY_LABEL[tk.priority]}</span>` : ''}</div>
-    <div class="tc-f">${typeTag(tk)}${complaintTag(tk)}<span class="pill p-${tk.status}">${STATUS_LABEL[tk.status]}</span>
+    <div class="tc-f">${complaintTag(tk)}<span class="pill p-${tk.status}">${STATUS_LABEL[tk.status]}</span>
       ${isManager(u) ? `<span class="tag ${tk.assignee ? '' : 'warn'}">${ic('user', 13, 2)}${tk.assignee ? esc(nameOf(tk.assignee)) : 'ยังไม่มอบหมาย'}</span>` : `<span class="tag">${esc(siteOf(tk)?.name || '-')}</span>`}
       ${tk.plan ? `<span class="tag">${ic('clock', 13, 2)}${tk.plan.date.slice(5)} ${tk.plan.from}–${tk.plan.to}</span>` : ''}${tk.mode === 'remote' ? `<span class="tag">${ic('globe', 13, 2)}รีโมท</span>` : ''}
       ${tk.rating ? starsHtml(tk.rating.score, 12) : ''}<span class="sp"></span>${qbtn}</div>

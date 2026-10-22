@@ -1136,3 +1136,15 @@ textarea,input,select{border-radius:14px}
 @media (max-width:959px){.tlbar .ibtn{display:none}}
 @media (min-width:960px){.statesel{display:none}.tlbar .sortbtn{margin-left:0}.tlbar .ibtn{margin-left:auto}}
 .statesel select,.sortbtn{background:var(--card-2)}
+
+/* การ์ดงาน: แถวข้อมูลบรรทัดเดียว (ป้ายเป็นตัวอักษรล้วน ไม่มีกล่อง) ปุ่มดำเนินการอยู่ปลายแถวเดียวกัน ไม่ซ้อนลงบรรทัดใหม่ */
+.tcard .tc-f{display:flex;flex-wrap:nowrap;align-items:center;gap:12px;margin:6px 0 0 40px;min-width:0}
+.tcard .tc-f>*{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tcard .tc-f .tag,.tcard .tc-f .pill{background:none;padding:0;border-radius:0;font-size:0.75rem}
+.tcard .tc-f .tag{color:var(--text-2)}
+.tcard .tc-f .tag.warn{color:var(--danger)}
+.tcard .tc-f .pill{font-weight:600;color:var(--text)}
+.tcard .tc-f .sp{flex:1 1 0;min-width:4px}
+.tcard .tc-f .btn{flex:none;overflow:visible}
+.tcard>.btn.block-sm{margin-top:8px}
+.tcard .tc-f .pill{flex:none;overflow:visible}
