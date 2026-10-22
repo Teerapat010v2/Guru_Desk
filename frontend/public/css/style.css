@@ -919,3 +919,22 @@ textarea,input,select{border-radius:14px}
   .side-brand .wm{font-size:1.5rem}
   .side-foot{display:block;margin:auto 10px 6px;padding-top:24px}
 }
+
+/* การ์ดงานเตี้ยลงทุกขนาดจอ */
+.tcard{padding:8px 12px}
+.tcard .tc-ic{width:30px;height:30px;border-radius:9px}
+.tc-h{gap:10px;align-items:center}
+.tc-f{margin:5px 0 0 40px;gap:4px}
+.list{gap:8px}
+.card .trow{padding:7px 0}
+
+/* คอมพิวเตอร์ (≥960px): แบ่งเป็นคอลัมน์ ให้เห็นทุกส่วนโดยไม่ต้องเลื่อนหา */
+@media (min-width:960px){
+  .pg-home{column-count:2;column-gap:28px}
+  .pg-home .phead{column-span:all}
+  .pg-home>*{break-inside:avoid}
+  .pg-home>.sec-h{break-after:avoid}
+  .pg-tickets .list{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:8px}
+  .pg-projects .list,.pg-team .list{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:8px}
+}
+@media (min-width:1500px){ .pg-home{column-count:3} }

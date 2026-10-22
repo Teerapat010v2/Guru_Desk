@@ -125,7 +125,8 @@ function setTheme(t) {
 
 /* ---------- ย่อ/ขยาย ---------- */
 function fold(key, title, body, opts = {}) {
-  const open = key in folds ? folds[key] : opts.open !== false;
+  // คอมพิวเตอร์: เปิดทุกส่วนไว้ก่อน (จอกว้างพอ ไม่ต้องกดหา) · ถ้าผู้ใช้พับ/ขยายเองก็ใช้ค่าที่เลือก
+  const open = key in folds ? folds[key] : opts.open !== false || matchMedia('(min-width:960px)').matches;
   return `<section class="fold ${open ? 'open' : ''}" data-fold="${key}">
     <div class="fold-h"><button class="fold-btn" onclick="toggleFold('${key}')" aria-expanded="${open}">
       <span class="fold-t">${title}</span>${opts.count != null ? `<span class="cnt ${opts.hot ? 'hot' : ''}">${opts.count}</span>` : ''}<span class="sp"></span><span class="fold-ic" title="${open ? 'ย่อ' : 'ขยาย'}">${ic('chev', 18, 2)}</span></button>
@@ -1996,7 +1997,7 @@ function renderAll() {
   renderTabbar();
   const home = { customer: homeCustomer, technician: homeTech, team_leader: homeLead, admin: homeAdmin }[u.role];
   const screens = { home: () => home(u), tickets: renderTickets, mission: renderMission, partners: renderPartners, reports: renderReports, users: renderUsers, me: renderMe, projects: renderProjects, team: renderTeam, history: renderHistory };
-  $('screen').innerHTML = `<div class="page">${screens[tab]()}</div>`;
+  $('screen').innerHTML = `<div class="page pg-${tab}">${screens[tab]()}</div>`;
   renderFab();
   if (sheetStack.length) renderSheet();
 }
