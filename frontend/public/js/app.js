@@ -801,8 +801,8 @@ function renderLogin() {
       <div class="err" id="lgErr" role="alert"></div>
       <button class="btn primary block" id="lgBtn" style="margin-top:16px" onclick="doLogin()">เข้าสู่ระบบ</button>
     ${st ? '' : `<div class="divider">ยังไม่มีบัญชี?</div>
-    <p class="hint" style="margin:6px 0 8px">สมัครด้วยรหัสบริษัท (ตัวแทนบริษัทของคุณยืนยันก่อนจึงใช้งานได้) หรือขอลิงก์สมัครจากตัวแทนบริษัท</p>
-    <button type="button" class="btn block" onclick="openJoinCode()">${ic('building', 16, 2)}สมัครด้วยรหัสบริษัท</button>
+    <p class="hint" style="margin:6px 0 8px">ลงชื่อเข้าใช้ครั้งแรกด้วยรหัสบริษัท (ตัวแทนบริษัทของคุณยืนยันก่อนจึงใช้งานได้) หรือขอลิงก์สมัครจากตัวแทนบริษัท</p>
+    <button type="button" class="btn block" onclick="openJoinCode()">${ic('building', 16, 2)}ลงชื่อเข้าใช้</button>
     `}
 
     <button class="btn link block" style="margin-top:22px" onclick="setLoginMode(${!st})">${st ? `${ic('user', 16, 2)}กลับไปเข้าสู่ระบบลูกค้า` : `${ic('tool', 16, 2)}เข้าสู่ระบบสำหรับช่าง / เจ้าหน้าที่`}</button>
@@ -847,7 +847,7 @@ async function doReset() {
 }
 /* สมัครด้วยรหัสบริษัท: server ตรวจรหัสกับรายชื่อบริษัทในฐานข้อมูล ไม่ใช่รหัสที่ถูกต้องก็ไปต่อไม่ได้ · บัญชีจะเปิดใช้เมื่อตัวแทนบริษัทกดยอมรับ */
 function openJoinCode() {
-  openModal(`<div class="mh"><h3>สมัครด้วยรหัสบริษัท</h3>${xbtn()}</div>
+  openModal(`<div class="mh"><h3>ลงชื่อเข้าใช้</h3>${xbtn()}</div>
     <label class="fl">รหัสบริษัท <em>*</em><input id="jcCode" maxlength="40" autocomplete="off" placeholder="ขอรหัสจากตัวแทนบริษัทของคุณ" onkeydown="if(event.key==='Enter')submitJoinCode()"></label>
     <div class="err" id="jcErr" role="alert"></div>
     <div class="row end"><button class="btn" onclick="closeModal()">ยกเลิก</button><button class="btn primary" onclick="submitJoinCode()">ถัดไป</button></div>`);
