@@ -513,7 +513,8 @@ function homeTech(u) {
   + `<div class="kpis tech-kpis"><div class="kpi"><b>${todo}</b><span>ต้องทำ</span></div><div class="kpi"><b>${todayN}</b><span>นัดวันนี้</span></div><div class="kpi"><b>${doneMonth}</b><span>เสร็จเดือนนี้</span></div></div>`
   + (m ? `<button class="mcard" onclick="goTab('mission')"><i>${ic('pin', 22, 1.8)}</i><div><b>ภารกิจที่กำลังทำ</b><small>${MISSION_LABEL[m.status]}</small></div>${ic('right', 18, 2)}</button>` : '')
   + (() => { const a = mine.filter(x => x.assignee === u.id && isOpen(x)).sort(byPriority); return a.length ? `<div class="sec-h"><h2>งานที่ได้รับมอบหมาย <span class="cnt">${a.length}</span></h2><button onclick="goTab('tickets')">ดูทั้งหมด ›</button></div>
-    <div class="card">${a.slice(0, 3).map(x => `<button class="trow" onclick="openTicket('${x.id}')">${ticketIcon(x)}<div class="tr-m"><b>${esc(x.subject)}</b><small>${x.mode === 'remote' ? 'รีโมท' : esc(siteLabel(x))} · ${STATUS_LABEL[x.status]}</small></div>${ic('right', 16, 2)}</button>`).join('')}</div>` : ''; })();
+    <div class="card">${a.slice(0, 3).map(x => `<button class="trow" onclick="openTicket('${x.id}')">${ticketIcon(x)}<div class="tr-m"><b>${esc(x.subject)}</b><small>${x.mode === 'remote' ? 'รีโมท' : esc(siteLabel(x))} · ${STATUS_LABEL[x.status]}</small></div>${ic('right', 16, 2)}</button>`).join('')}</div>` : ''; })()
+  + fold('t-plan', 'ปฏิทินงาน', calHtml(plannedTickets(u)), { count: plannedTickets(u).length, open: true });
 }
 /* ประวัติการทำงานของช่าง: แยกเป็นเดือน เดือนล่าสุดเปิดไว้ */
 function renderHistory() {
@@ -542,7 +543,7 @@ function homeLead(u) {
   + '</div><div class="hm-side">'
   + (() => { const pl = tickets.filter(t => t.plan && isOpen(t)).sort((a, b) => (a.plan.date + a.plan.from) < (b.plan.date + b.plan.from) ? -1 : 1);
     const days = [...new Set(pl.map(t => t.plan.date))];
-    return fold('l-plan', 'ปฏิทินงาน', pl.length ? days.map(d => `<div class="cal-day"><b>${new Date(d + 'T00:00').toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' })}</b>${pl.filter(t => t.plan.date === d).map(t => `<button class="trow" onclick="openTicket('${t.id}')"><div class="tr-m"><b>${t.plan.from}–${t.plan.to} · ${esc(t.subject)}</b><small>${esc(custName(t.customer))} · ${esc(t.assignee ? nameOf(t.assignee) : 'ยังไม่มอบหมาย')}</small></div>${ic('right', 16, 2)}</button>`).join('')}</div>`).join('') : empty('ยังไม่มีนัดหมาย ตั้งวันและเวลาได้ในหน้ารายละเอียดงาน', 'clock'), { count: pl.length, open: pl.length > 0 }); })()
+    return fold('l-plan', 'ปฏิทินงาน', pl.length ? days.map(d => `<div class="cal-day"><b>${new Date(d + 'T00:00').toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' })}</b>${pl.filter(t => t.plan.date === d).map(t => `<button class="trow" onclick="openTicket('${t.id}')"><div class="tr-m"><b>${t.plan.from}–${t.plan.to} · ${esc(t.subject)}</b><small>${esc(custName(t.customer))} · ${esc(t.assignee ? nameOf(t.assignee) : 'ยังไม่มอบหมาย')}</small></div>${ic('right', 16, 2)}</button>`).join('')}</div>`).join('') : empty('ยังไม่มีนัดหมาย ตั้งวันและเวลาได้ในหน้ารายละเอียดงาน', 'clock'), { count: pl.length, open: true }); })()
   + fold('l-load', 'ภาระงานของช่าง', `<div class="card">${techs.map(x => {
       const mine = tickets.filter(t => t.assignee === x.id && isOpen(t)), n = mine.length;
       return `<div class="load"><div class="lname"><b>${esc(x.name)}</b><small>${n} งานเปิด${mine.some(t => t.priority === 'urgent') ? ' · <em class="prio-urgent">มีงานด่วน</em>' : ''}</small></div>
@@ -556,6 +557,7 @@ function homeAdmin(u) {
       { icon: 'building', label: 'พาร์ทเนอร์', sub: `${allSites().length} สถานที่`, fn: "goTab('partners')" },
       { icon: 'chart', label: 'รายงาน', fn: "rpt.view='summary';goTab('reports')" }])
   + workSection(u) + '</div><div class="hm-side">'
+  + fold('a-plan', 'ปฏิทินงาน', calHtml(plannedTickets(u)), { count: plannedTickets(u).length, open: true })
   + fold('a-roles', 'ผู้ใช้ตามบทบาท', `<div class="rolegrid">${ROLE_ORDER.map(r => `<button class="rg" onclick="goTab('users')"><i>${ic(ROLE_META[r].icon, 20)}</i><b>${roleCount(r)}</b><span>${ROLE_LABEL[r]}</span></button>`).join('')}</div>`, { open: false })
   + fold('a-audit', 'เหตุการณ์ล่าสุด', `<div class="card">${auditRows(auditLog.slice(0, 5))}</div>`, { open: false, count: auditLog.length }) + '</div>';
 }
@@ -997,10 +999,9 @@ async function saveProject() {
 
 /* ปฏิทินงาน (ช่าง = นัดของตัวเอง · หัวหน้าทีม = ทั้งหมด): งานที่วางวันไว้และยังไม่เสร็จ แยกเป็นวัน */
 const plannedTickets = u => visibleTickets(u).filter(t => t.plan && isOpen(t)).sort((a, b) => (a.plan.date + a.plan.from) < (b.plan.date + b.plan.from) ? -1 : 1);
-function openCalendar() {
-  const pl = plannedTickets(currentUser), days = [...new Set(pl.map(t => t.plan.date))];
-  openModal(`<div class="mh"><h3>ปฏิทินงาน</h3>${xbtn()}</div>` + (pl.length ? days.map(d => `<div class="cal-day"><b>${new Date(d + 'T00:00').toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' })}</b>${pl.filter(t => t.plan.date === d).map(t => `<button class="trow" onclick="closeModal();openTicket('${t.id}')"><div class="tr-m"><b>${t.plan.from}–${t.plan.to} · ${esc(t.subject)}</b><small>${typeTag(t) ? (isMAJob(t) ? 'MA' : 'แจ้งเหตุ') + ' · ' : ''}${esc(custName(t.customer))} · ${esc(siteLabel(t))}${isManager(currentUser) ? ' · ' + esc(t.assignee ? nameOf(t.assignee) : 'ยังไม่มอบหมาย') : ''}</small></div>${ic('right', 16, 2)}</button>`).join('')}</div>`).join('') : empty('ยังไม่มีนัดหมาย — หัวหน้าทีมวางวันและเวลาได้ในหน้ารายละเอียดงาน', 'clock')));
-}
+const calHtml = pl => pl.length ? [...new Set(pl.map(t => t.plan.date))].map(d => `<div class="cal-day"><b>${new Date(d + 'T00:00').toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' })}</b>${pl.filter(t => t.plan.date === d).map(t => `<button class="trow" onclick="closeModal();openTicket('${t.id}')"><div class="tr-m"><b>${t.plan.from}–${t.plan.to} · ${esc(t.subject)}</b><small>${isMAJob(t) ? 'MA' : 'แจ้งเหตุ'} · ${esc(custName(t.customer))} · ${esc(siteLabel(t))}${isManager(currentUser) ? ' · ' + esc(t.assignee ? nameOf(t.assignee) : 'ยังไม่มอบหมาย') : ''}</small></div>${ic('right', 16, 2)}</button>`).join('')}</div>`).join('')
+  : empty('ยังไม่มีนัดหมาย — หัวหน้าทีมวางวันและเวลาได้ในหน้ารายละเอียดงาน', 'clock');
+function openCalendar() { openModal(`<div class="mh"><h3>ปฏิทินงาน</h3>${xbtn()}</div>${calHtml(plannedTickets(currentUser))}`); }
 /* ---------- หน้า "ฉัน": โปรไฟล์ · โหมดสี · ตั้งค่า ---------- */
 function renderMe() {
   const u = currentUser;
