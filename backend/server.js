@@ -183,7 +183,7 @@ http.createServer(async (req, res) => {
         // ลูกค้าเห็นเฉพาะความเห็นสาธารณะ และไม่เห็น work log (ข้อมูลภายใน)
         pool.query(`select id, ticket_id, by_user, vis, text, at from comments where ticket_id = any($1) ${staff ? '' : "and vis = 'public'"} order by at, id`, [ids]),
         staff ? pool.query('select id, ticket_id, by_user, text, photo_ids, at from worklogs where ticket_id = any($1) order by at, id', [ids]) : { rows: [] },
-        pool.query(`select r.ticket_id, r.no, r.summary, r.parts, r.hours, r.by_user, r.at,
+        pool.query(`select r.ticket_id, r.no, r.summary, r.parts, r.hours, r.by_user, r.at, to_jsonb(r) -> 'checklist' as checklist,
                            s.name as s_name, s.position as s_position, s.via as s_via, s.by_user as s_by, s.at as s_at, s.signature,
                            rt.score, rt.comment as r_comment, rt.by_user as r_by, rt.via as r_via, rt.at as r_at
                     from reports r left join signoffs s on s.ticket_id = r.ticket_id left join ratings rt on rt.ticket_id = r.ticket_id
@@ -212,7 +212,7 @@ http.createServer(async (req, res) => {
           history, comments: (C[t.id] ?? []).map(c => ({ by: c.by_user, vis: c.vis, text: c.text, at: c.at, photos: P[`${t.id}:c${c.id}`] ?? [] })),
           worklogs: (W[t.id] ?? []).map(w => ({ by: w.by_user, text: w.text, at: w.at, photos: w.photo_ids })),
           report: r ? {
-            no: r.no, summary: r.summary, parts: r.parts, hours: Number(r.hours), by: r.by_user, at: r.at, photos: P[`${t.id}:r`] ?? [],
+            no: r.no, summary: r.summary, parts: r.parts, hours: Number(r.hours), by: r.by_user, at: r.at, photos: P[`${t.id}:r`] ?? [], checklist: r.checklist ?? null,
             signoff: r.s_via ? { name: r.s_name, position: r.s_position ?? '', via: r.s_via, by: r.s_by, at: r.s_at, sig: r.signature } : null,
             // ปิดงานโดยไม่มีลายเซ็น: เหตุผลอยู่ในประวัติการเปลี่ยนสถานะครั้งล่าสุด
             closedNoSign: !r.s_via && t.status === 'closed' ? history.findLast(h => h.to === 'closed')?.reason ?? '' : undefined,
@@ -372,6 +372,13 @@ http.createServer(async (req, res) => {
         const hours = Number(body.hours ?? 0);
         if (!summary || summary.length > 2000) return send(res, 400, { error: 'invalid_text' });
         if (!Number.isFinite(hours) || hours < 0 || hours > 999) return send(res, 400, { error: 'invalid_hours' });
+        // เช็กลิสต์ MA (ไม่ส่ง = ไม่มี): จำกัดจำนวนแถวและความยาวข้อความ
+        const c0 = body.checklist && typeof body.checklist === 'object' ? body.checklist : null;
+        const checklist = c0 && {
+          hw: (Array.isArray(c0.hw) ? c0.hw : []).slice(0, 20).map(x => ({ item: String(x?.item ?? '').slice(0, 60), ok: x?.ok === true, note: String(x?.note ?? '').slice(0, 200) })),
+          pc: (Array.isArray(c0.pc) ? c0.pc : []).slice(0, 20).map(x => ({ name: String(x?.name ?? '').slice(0, 60), disk: x?.disk === true, win: x?.win === true, virus: x?.virus === true, note: String(x?.note ?? '').slice(0, 200) })),
+          notes: String(c0.notes ?? '').slice(0, 500),
+        };
         const done = await inTx(async c => {
           const r = await c.query("update tickets set status = 'resolved', version = version + 1 where id = $1 and status = $2", [id, t.status]);
           if (r.rowCount === 0) return false;
@@ -382,6 +389,8 @@ http.createServer(async (req, res) => {
                          values ($1, 'SR-' || extract(year from now())::int || '-' || lpad(nextval('report_seq')::text, 4, '0'), $2, $3, $4, $5)
                          on conflict (ticket_id) do update set summary = excluded.summary, parts = excluded.parts,
                            hours = excluded.hours, by_user = excluded.by_user, at = now()`, [id, summary, parts, hours, me.id]);
+          // คอลัมน์ checklist ต้องรัน migrations/004 ก่อน — งานทั่วไปที่ไม่มีเช็กลิสต์จึงไม่แตะคอลัมน์นี้
+          if (checklist) await c.query('update reports set checklist = $2::jsonb where ticket_id = $1', [id, JSON.stringify(checklist)]);
           await c.query('insert into ticket_history (ticket_id, from_status, to_status, by_user, reason) values ($1, $2, $3, $4, $5)',
             [id, t.status, 'resolved', me.id, summary.slice(0, 500)]);
           // รูปหลังซ่อมของใบรายงานใหม่แทนชุดเดิม (งานที่ถูกเปิดซ้ำแล้วทำเสร็จอีกครั้ง)

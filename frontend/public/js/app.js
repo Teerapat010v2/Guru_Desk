@@ -1193,6 +1193,24 @@ function suggestHours(tk) {
   const start = tk.history.find(h => h.to === 'in_progress')?.at || tk.history[0].at;
   return Math.max(0.5, Math.round((Date.now() - start.getTime()) / 3600000 * 2) / 2);
 }
+/* เช็กลิสต์งาน MA ตามใบ Customer Service Report: อุปกรณ์ระบบ + เครื่องผู้ใช้ — เฉพาะลูกค้าสัญญา MA */
+const MA_HW = ['Firewall', 'Server', 'Switch', 'NAS', 'UPS', 'CCTV', 'Printers', 'Router ISP', 'Wireless AP'];
+const isMA = tk => customers[tk.customer]?.contract === 'ma';
+const maForm = tk => !isMA(tk) ? '' : `<div class="fl">เช็กลิสต์ MA — อุปกรณ์ระบบ</div>
+  <div class="card ma-box">${MA_HW.map((h, i) => `<div class="ma-row"><label><input type="checkbox" id="mhw${i}"> ${h}</label><input id="mhn${i}" placeholder="หมายเหตุ" maxlength="200" aria-label="หมายเหตุ ${h}"></div>`).join('')}</div>
+  <div class="fl">เครื่องผู้ใช้ (ไม่ต้องกรอกทุกช่อง)</div>
+  <div class="card ma-box">${[0, 1, 2, 3, 4].map(i => `<div class="ma-row"><input id="mpn${i}" placeholder="ชื่อผู้ใช้" maxlength="60" aria-label="ชื่อผู้ใช้ ${i + 1}"><span class="ma-chk"><label><input type="checkbox" id="mpd${i}">ดิสก์</label><label><input type="checkbox" id="mpw${i}">อัปเดต</label><label><input type="checkbox" id="mpv${i}">ไวรัส</label></span></div>`).join('')}</div>
+  <input id="mNotes" placeholder="หมายเหตุอื่นๆ (เช่น ตั้งค่า WiFi, Shared Calendar)" maxlength="500" aria-label="หมายเหตุอื่นๆ">`;
+const maBox = tk => !isMA(tk) ? null : {
+  hw: MA_HW.map((h, i) => ({ item: h, ok: $('mhw' + i).checked, note: $('mhn' + i).value.trim() })),
+  pc: [0, 1, 2, 3, 4].map(i => ({ name: $('mpn' + i).value.trim(), disk: $('mpd' + i).checked, win: $('mpw' + i).checked, virus: $('mpv' + i).checked, note: '' })).filter(x => x.name),
+  notes: $('mNotes').value.trim(),
+};
+const maReport = c => `<h2>เช็กลิสต์ MA</h2>
+  <table class="p-grid"><tr><th>อุปกรณ์</th><th>ตรวจแล้ว</th><th colspan="2">หมายเหตุ</th></tr>
+  ${c.hw.map(x => `<tr><td>${esc(x.item)}</td><td class="c">${x.ok ? '✓' : '–'}</td><td colspan="2">${esc(x.note || '')}</td></tr>`).join('')}</table>
+  ${c.pc?.length ? `<table class="p-grid"><tr><th>เครื่องผู้ใช้</th><th>ดิสก์</th><th>Windows Update</th><th>ไวรัส</th></tr>${c.pc.map(x => `<tr><td>${esc(x.name)}</td><td class="c">${x.disk ? '✓' : '–'}</td><td class="c">${x.win ? '✓' : '–'}</td><td class="c">${x.virus ? '✓' : '–'}</td></tr>`).join('')}</table>` : ''}
+  ${c.notes ? `<p class="p-text">${esc(c.notes)}</p>` : ''}`;
 function openResolve(id) {
   const tk = tickets.find(x => x.id === id), u = currentUser;
   if (!canResolveWithReport(u, tk)) return;
@@ -1210,6 +1228,7 @@ function openResolve(id) {
       ${onsite ? `<label class="opt"><input type="radio" name="nextSign" value="now" checked><div><b>ให้ลูกค้าเซ็นบนเครื่องนี้ทันที</b><small>เหมาะเมื่ออยู่หน้างานกับลูกค้า</small></div></label>` : ''}
       <label class="opt"><input type="radio" name="nextSign" value="app" ${onsite ? '' : 'checked'}><div><b>ส่งให้ลูกค้าเซ็นในแอป</b><small>ลูกค้าจะเห็น "รอคุณเซ็นรับ"</small></div></label>
     </div></div>
+    ${maForm(tk)}
     <div class="err" id="rErr" role="alert"></div>
     <div class="row end"><button class="btn" onclick="closeModal()">ยกเลิก</button><button class="btn primary" onclick="submitResolve('${id}')">${ic('doc', 16, 2)}ออกใบรายงาน</button></div>`);
   focusLater('rSum');
@@ -1220,7 +1239,7 @@ async function submitResolve(id) {
   if (!canResolveWithReport(u, tk)) return;
   stopVoice();
   const next = document.querySelector('input[name=nextSign]:checked')?.value;
-  if (!await call(`/tickets/${id}/resolve`, { summary, parts: $('rParts').value.trim(), hours: Math.max(0, +$('rHours').value || 0), photos: pending.report.map(p => PHOTOS[p]) }, 'rErr')) return;
+  if (!await call(`/tickets/${id}/resolve`, { summary, parts: $('rParts').value.trim(), hours: Math.max(0, +$('rHours').value || 0), photos: pending.report.map(p => PHOTOS[p]), checklist: maBox(tk) }, 'rErr')) return;
   clearPending('report');
   const no = tickets.find(x => x.id === id)?.report?.no;
   if (next !== 'now') notify(Object.values(users).filter(x => x.customer === tk.customer).map(x => x.id), 'งานเสร็จแล้ว — กรุณาเซ็นรับ', tk.subject, id);
@@ -1576,6 +1595,7 @@ function openReport(id) {
       <tr><th>ช่างผู้ปฏิบัติงาน</th><td>${esc(nameOf(r.by))}</td><th>เวลาที่ใช้</th><td>${hrs(r.hours)}</td></tr>
       <tr><th>เริ่มดำเนินการ</th><td>${started ? fmt(started) : '-'}</td><th>แล้วเสร็จ</th><td>${fmt(r.at)}</td></tr>
     </table>
+    ${r.checklist ? maReport(r.checklist) : ''}
     ${r.photos?.length ? `<h2>รูปภาพประกอบ</h2><div class="p-photos">${r.photos.filter(p => PHOTOS[p]).map(p => `<img src="${PHOTOS[p]}" alt="รูปหลังดำเนินการ">`).join('')}</div>` : ''}
     <div class="p-signs">
       <div class="p-sign"><div class="p-sigbox typed">${esc(nameOf(r.by))}</div><b>( ${esc(nameOf(r.by))} )</b><small>ผู้ปฏิบัติงาน · ${fmtD(r.at)}</small><small class="muted">ยืนยันตัวตนด้วยการเข้าสู่ระบบ</small></div>

@@ -758,3 +758,11 @@ textarea,input,select{border-radius:14px}
   .pill,.sbadge{font-size:0.6875rem;padding:1px 7px 1px 6px}
   .tcard .btn.sm{min-height:32px;padding:3px 10px;font-size:0.75rem}
 }
+
+/* เช็กลิสต์ MA ในฟอร์มทำเสร็จ: แถวละอุปกรณ์ บนมือถือเรียงลงมา */
+.ma-box{padding:10px 12px;margin-bottom:8px;display:flex;flex-direction:column;gap:8px}
+.ma-row{display:flex;flex-direction:column;gap:4px}
+.ma-row label{display:flex;align-items:center;gap:8px;font-size:0.875rem}
+.ma-row input[type=text],.ma-row input:not([type]){padding:6px 10px}
+.ma-chk{display:flex;flex-wrap:wrap;gap:12px;font-size:0.8125rem}
+.ma-chk label{display:flex;align-items:center;gap:4px}
