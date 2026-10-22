@@ -383,9 +383,9 @@ function pageHead(title, sub = '', actions = '', opt = {}) {
   return `<header class="phead">
     ${back ? `<button class="ibtn back" onclick="goBack()" aria-label="กลับไปหน้าก่อนหน้า" title="กลับไปหน้าก่อนหน้า">${ic('back', 22, 2)}</button>` : ''}
     <div class="ph-t">${opt.logo ? '<button class="logo-btn" onclick="goHome()" aria-label="กลับหน้าหลัก"><img class="ph-logo" src="img/logo.png" alt="Guru IT Solution" width="96" height="28"></button>' : ''}<h1>${title}</h1>${sub ? `<small>${esc(sub)}</small>` : ''}</div>
-    <div class="ph-a">${actions}${toolBtns()}<button class="ibtn bell" onclick="openNotifs()" title="การแจ้งเตือน" aria-label="การแจ้งเตือน${unread ? ` ยังไม่อ่าน ${unread}` : ''}">${ic('bell', 22, 1.7)}${unread ? `<b class="tbdg">${unread}</b>` : ''}</button></div></header>`;
+    <div class="ph-a">${actions}${opt.tools === false ? '' : toolBtns()}<button class="ibtn bell" onclick="openNotifs()" title="การแจ้งเตือน" aria-label="การแจ้งเตือน${unread ? ` ยังไม่อ่าน ${unread}` : ''}">${ic('bell', 22, 1.7)}${unread ? `<b class="tbdg">${unread}</b>` : ''}</button></div></header>`;
 }
-const tiles = items => `<div class="tiles">${items.filter(Boolean).map(t => `<button class="tile" onclick="${t.fn}"><i>${ic(t.icon, 26, 1.7)}${t.badge ? `<b class="tbdg">${t.badge}</b>` : ''}</i><span>${t.label}</span>${t.sub ? `<small>${t.sub}</small>` : ''}</button>`).join('')}</div>`;
+const tiles = (items, cls = '') => `<div class="tiles ${cls}">${items.filter(Boolean).map(t => `<button class="tile" onclick="${t.fn}"><i>${ic(t.icon, 26, 1.7)}${t.badge ? `<b class="tbdg">${t.badge}</b>` : ''}</i><span>${t.label}</span>${t.sub ? `<small>${t.sub}</small>` : ''}</button>`).join('')}</div>`;
 function textTabs(items, cur, setter) {
   return `<div class="ttabs" role="tablist">${items.map(([k, l, n]) => `<button role="tab" data-k="${k}" aria-selected="${cur === k}" class="${cur === k ? 'on' : ''}" onclick="${setter}('${k}')">${l}${n != null ? `<sup>${n}</sup>` : ''}</button>`).join('')}</div>`;
 }
@@ -442,15 +442,16 @@ function homeCustomer(u) {
   const open = vis.filter(isOpen);
   const toRate = vis.filter(x => canRate(u, x)).slice(0, 1);
   const myProjects = projects.filter(p => canSeeProject(u, p) && pct(p) < 100);
-  return pageHead(`สวัสดี คุณ${u.name}`, custName(u.customer), '', { logo: true })
+  return pageHead(`สวัสดี คุณ${u.name}`, custName(u.customer), '', { tools: false })
   + tiles([
-      { icon: 'alert', label: 'แจ้งเหตุ / แจ้งซ่อม', sub: 'ของใช้งานไม่ได้', fn: 'openCreate()' },
-      { icon: 'chat', label: 'ติดต่อร้องขอ', sub: 'ขอบัญชี · เลื่อนนัด', fn: 'openContact()' },
-      { icon: 'doc', label: 'รายงานการทำงาน', sub: 'ดูใบรายงานช่าง', fn: "goTab('tickets')" },
-      { icon: 'chat', label: 'ร้องเรียน / ติชม', sub: 'แจ้งความไม่พอใจ', fn: "openCreate('complaint')" }])
+      { icon: 'alert', label: 'แจ้งเหตุ', fn: 'openCreate()' },
+      { icon: 'chat', label: 'ติดต่อ', fn: 'openContact()' },
+      { icon: 'doc', label: 'รายงาน', fn: "goTab('tickets')" },
+      { icon: 'pen', label: 'ร้องเรียน', fn: "openCreate('complaint')" }], 'compact')
   + (pendingJoins(u).length ? fold('c-join', 'คำขอเข้าใช้งาน', `<div class="list dense">${pendingJoins(u).map(joinRow).join('')}</div>`, { count: pendingJoins(u).length, hot: true }) : '')
   + (toSign.length ? fold('c-sign', 'รอคุณเซ็นรับ', list(toSign, { quick: true }), { count: toSign.length, hot: true }) : '')
-  + fold('c-open', 'กำลังดำเนินการ', open.length ? list(open) : empty('ไม่มีงานค้าง — ทุกอย่างเรียบร้อย'), { count: open.length })
+  + `<div class="sec-h"><h2>งานของฉัน${open.length ? ` <span class="cnt">${open.length}</span>` : ''}</h2><button onclick="goTab('tickets')">ดูทั้งหมด ›</button></div>`
+  + (open.length ? list(open.slice(0, 4)) : empty('ไม่มีงานค้าง — ทุกอย่างเรียบร้อย'))
   + (myProjects.length ? fold('c-projects', 'โปรเจกต์ของบริษัท', `<div class="list">${myProjects.map(projCard).join('')}</div>`, { count: myProjects.length }) : '')
   + (toRate.length ? `<button class="mcard nudge" onclick="openRating('${toRate[0].id}')"><i>${ic('star', 22, 1.8)}</i><div><b>บริการครั้งล่าสุดเป็นอย่างไร?</b><small>${esc(toRate[0].subject)} — แตะเพื่อให้คะแนน</small></div>${ic('right', 18, 2)}</button>` : '');
 }
