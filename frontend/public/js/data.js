@@ -31,7 +31,7 @@ const PRIORITY_ORDER = { urgent: 0, high: 1, medium: 2, low: 3 };
 const TYPE_LABEL = { service: 'แจ้งเหตุ', ma: 'งาน MA', complaint: 'ร้องเรียน' };
 
 /* ภาษาที่ลูกค้าเข้าใจ: ย่อ 6 สถานะเหลือ 4 ขั้น */
-const CUST_STEPS = ['รับเรื่อง', 'มอบหมายช่าง', 'กำลังแก้ไข', 'เสร็จสิ้น'];
+const CUST_STEPS = ['รับเรื่อง', 'มอบหมาย', 'กำลังทำ', 'เสร็จสิ้น'];
 const CUST_STAGE = { new: 0, assigned: 1, in_progress: 2, pending: 2, resolved: 3, closed: 3 };
 const CUST_STATUS = {
   new: 'ได้รับเรื่องแล้ว', assigned: 'มอบหมายช่างแล้ว', in_progress: 'ช่างกำลังแก้ไข',

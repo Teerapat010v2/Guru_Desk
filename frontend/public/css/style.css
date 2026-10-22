@@ -1103,10 +1103,17 @@ textarea,input,select{border-radius:14px}
 .stepper{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);margin-top:16px}
 .stp{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;font-size:0.75rem;line-height:1.3;color:var(--text-2)}
 .stp b{position:relative;z-index:1;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--surface);border:2px solid var(--line);color:var(--text-3)}
-.stp.done b{background:var(--primary);border-color:var(--primary);color:#fff}
+.stp.ok b{background:var(--primary);border-color:var(--primary);color:#fff}
 .stp.now b{border-color:var(--primary)}
 .stp.now b u{display:block;width:12px;height:12px;border-radius:50%;background:var(--primary)}
-.stp.done,.stp.now{color:var(--text)}
+.stp.ok,.stp.now{color:var(--text)}
 .stp+.stp::before{content:'';position:absolute;top:13px;right:50%;width:100%;height:3px;border-radius:2px;background:var(--line)}
-.stp.done::before,.stp.now::before{background:var(--primary)}
+.stp.ok::before,.stp.now::before{background:var(--primary)}
 .stp span{max-width:7em}
+
+/* การ์ดสถานะ: หัวข้อเต็มความกว้าง · แถวป้ายสถานะ/ชื่อช่างแยกลงมา · ขั้นตอนเรียงเท่ากัน ป้ายสั้นบรรทัดเดียว */
+.status-card .st-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px}
+.status-card .st-meta .st-who{position:static;max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0;text-align:right}
+.status-card .st-t b{white-space:normal;overflow-wrap:anywhere}
+.stp b{flex:none;min-width:28px;min-height:28px}
+.stp span{max-width:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%}
