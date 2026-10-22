@@ -385,6 +385,8 @@ const EN = {
   'เบอร์โทร (ไม่บังคับ)': 'Phone (optional)', 'รหัสผ่านที่ใช้เข้าระบบ (อย่างน้อย 8 ตัว)': 'Password for signing in (at least 8 characters)',
   'ตัวแทนบริษัทจะยืนยันว่าคุณเป็นพนักงานจริงก่อนเข้าใช้งาน': 'Your company representative will confirm you are an employee before you can sign in',
 
+  'ความสำคัญ': 'Priority', 'วันที่แจ้ง · เก่าสุดก่อน': 'Submitted · oldest first',
+
 };
 
 /* คีย์ยาวก่อน เพื่อไม่ให้คำสั้นไปตัดคำยาว */

@@ -594,7 +594,7 @@ function renderTickets() {
   + (showSearch ? `<div class="searchbox">${ic('search', 18)}<input id="q" type="search" placeholder="ค้นหาเลขงาน หัวข้อ สถานที่…" value="${esc(query)}" oninput="query=this.value;$('tlist').innerHTML=ticketListHtml()" aria-label="ค้นหางาน"></div>` : '')
   + (isStaff(u) ? typeChips(u) : '')
   + fold('tk-status', 'สถานะงาน', `<div class="tbar tbar-tk">${textTabs(filtersFor(u).map(([k, l, f]) => [k, l, vis.filter(f).length]), filter, 'setFilter')}<span class="sp"></span>${densityBtn()}</div>`, { count: filteredTickets().length })
-  + `<div class="seg sortseg" role="tablist" aria-label="เรียงงานตาม"><button role="tab" aria-selected="${sortBy === 'priority'}" class="${sortBy === 'priority' ? 'on' : ''}" onclick="setSort('priority')">เรียงตามความสำคัญ</button><button role="tab" aria-selected="${sortBy === 'date'}" class="${sortBy === 'date' ? 'on' : ''}" onclick="setSort('date')">วันที่แจ้ง (เก่าสุดก่อน)</button></div>`
+  + `<div class="sortline"><button type="button" class="sortbtn" onclick="setSort('${sortBy === 'date' ? 'priority' : 'date'}')" aria-label="เรียงงานตาม ${sortBy === 'date' ? 'วันที่แจ้ง' : 'ความสำคัญ'} แตะเพื่อสลับ">${ic('swap', 16, 2)}${sortBy === 'date' ? 'วันที่แจ้ง · เก่าสุดก่อน' : 'ความสำคัญ'}</button></div>`
   + `<div id="tlist">${ticketListHtml()}</div>`;
 }
 function ticketListHtml() {

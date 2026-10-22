@@ -1117,3 +1117,9 @@ textarea,input,select{border-radius:14px}
 .status-card .st-t b{white-space:normal;overflow-wrap:anywhere}
 .stp b{flex:none;min-width:28px;min-height:28px}
 .stp span{max-width:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%}
+
+/* ปุ่มเรียงงานปุ่มเดียว: แตะสลับ ความสำคัญ ⇄ วันที่แจ้ง */
+.sortline{display:flex;justify-content:flex-end;margin:2px 0 8px}
+.sortbtn{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:4px 12px;border:0;border-radius:999px;background:var(--card);color:var(--text-2);font:inherit;font-size:0.8125rem;cursor:pointer}
+.sortbtn svg{color:var(--primary)}
+.sortbtn:hover{background:var(--card-2)}
