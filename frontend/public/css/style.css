@@ -682,8 +682,8 @@ label.fl+.voicebox{margin-top:6px}
 .ttabs button[data-k=closed],.side-filters button[data-k=closed]{color:var(--ok)}
 .ttabs button.on,.side-filters button.on{color:var(--primary)}
 
-/* มือถือ: หัวข้อหน้าได้เต็มความกว้าง ปุ่มมุมขวาขึ้นบรรทัดใหม่ (กันชื่อหน้าตัดคำ) */
-@media (max-width:599px){.phead{flex-wrap:wrap}.phead .ph-t{flex:1 1 70%}.phead .ph-a{margin-left:auto}}
+/* มือถือ: หัวหน้าแถวเดียว ชื่อหน้าซ้าย กระดิ่ง/ค้นหาขวา · ภาษากับโหมดสีย้ายไปหน้า ฉัน · ชื่อยาวตัดเหลือ 2 บรรทัด */
+@media (max-width:599px){.phead .ph-a .ftool{display:none}.ph-t h1{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}}
 
 /* หน้าแรกลูกค้าแบบสะอาด: ทางลัดแถวเดียว และหัวข้อรายการพร้อมลิงก์ดูทั้งหมด */
 .tiles.compact{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;max-width:560px;margin-bottom:6px}

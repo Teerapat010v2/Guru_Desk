@@ -378,7 +378,7 @@ const xbtn = () => `<button class="xbtn" onclick="closeModal()" aria-label="ป�
 const ibtn = (icon, label, fn, pressed) => `<button class="ibtn ${pressed ? 'on' : ''}" onclick="${fn}" title="${label}" aria-label="${label}" ${pressed != null ? `aria-pressed="${!!pressed}"` : ''}>${ic(icon, 22, 1.7)}</button>`;
 function pageHead(title, sub = '', actions = '', opt = {}) {
   /* ย้อนกลับได้ทุกหน้าที่เปิดต่อจากหน้าอื่น (opt.back = false เพื่อซ่อน) */
-  const back = opt.back !== false && tabStack.length > 0;
+  const back = opt.back !== false && tabStack.length > 0 && !tabsFor(currentUser).some(t => t.id === tab);   // หน้าในเมนูล่างไม่ต้องมีปุ่มย้อนกลับ
   const unread = myNotifs().filter(n => !n.read).length;
   return `<header class="phead">
     ${back ? `<button class="ibtn back" onclick="goBack()" aria-label="กลับไปหน้าก่อนหน้า" title="กลับไปหน้าก่อนหน้า">${ic('back', 22, 2)}</button>` : ''}
