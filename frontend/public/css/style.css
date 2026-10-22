@@ -721,3 +721,10 @@ textarea,input,select{border-radius:14px}
 
 /* หน้าแรกช่าง: ตัวเลขสรุป 3 ช่องเสมอ */
 .tech-kpis{grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:4px}
+
+/* หน้า "ฉัน": การ์ดโปรไฟล์กลางหน้า + การแสดงผลพับเก็บไว้ */
+.me-card{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;padding:22px 16px 18px;border-radius:var(--radius);background:var(--card)}
+.me-card b{margin-top:10px;font-size:1.1875rem;font-weight:500}
+.me-card small{font-size:.8125rem;color:var(--text-2);overflow-wrap:anywhere}
+.me-card .btn{margin-top:14px}
+.me-card+.sgroup{margin-top:14px}

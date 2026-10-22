@@ -492,6 +492,43 @@ http.createServer(async (req, res) => {
         return send(res, 200, { ok: true });
       }
     }
+    // แก้ข้อมูลของตัวเอง (ทุกบทบาท): ชื่อ เบอร์ รูป ได้เลย · เปลี่ยนอีเมลเข้าระบบหรือรหัสผ่านต้องยืนยันรหัสปัจจุบัน
+    if (req.method === 'POST' && req.url === '/api/me') {
+      const me = await currentUser(req);
+      if (!me) return send(res, 401, { error: 'not_signed_in' });
+      const b = await readJson(req, PHOTO_BODY);
+      const name = String(b.name ?? '').trim(), email = String(b.email ?? '').trim().toLowerCase();
+      const phone = String(b.phone ?? '').replace(/[\s-]/g, ''), current = String(b.currentPassword ?? ''), next = String(b.newPassword ?? '');
+      const photos = parsePhotos(b.photo ? [b.photo] : [], 1);
+      if (photos === null) return send(res, 400, { error: 'invalid_photo' });
+      if (!name || name.length > 100) return send(res, 400, { error: 'invalid_name' });
+      if (email.length > 100 || !EMAIL.test(email)) return send(res, 400, { error: 'invalid_email' });
+      if (phone && !/^\+?\d{9,15}$/.test(phone)) return send(res, 400, { error: 'invalid_phone' });
+      if (next && (next.length < 8 || next.length > 200)) return send(res, 400, { error: 'invalid_new_password' });
+      const { rows: [row] } = await pool.query('select email, password_hash from users where id = $1', [me.id]);
+      if (email !== row.email || next) {
+        const lock = failedLogins.get(row.email);
+        if (lock?.n >= 10 && Date.now() - lock.at < LOCK_MS) return send(res, 429, { error: 'too_many_attempts' });
+        if (!current || current.length > 200 || !(await verifyPassword(current, row.password_hash ?? DUMMY_HASH))) {
+          failedLogins.set(row.email, { n: (Date.now() - (lock?.at ?? 0) < LOCK_MS ? lock.n : 0) + 1, at: Date.now() });
+          return send(res, 403, { error: 'wrong_password' });   // 403 ไม่ใช่ 401 — ไม่ให้หน้าเว็บเข้าใจว่า session หมดอายุ
+        }
+        failedLogins.delete(row.email);
+      }
+      try {
+        await inTx(async c => {
+          await c.query('update users set name = $2, email = $3, phone = $4, password_hash = coalesce($5, password_hash) where id = $1',
+            [me.id, name, email, phone || null, next ? await hashPassword(next) : null]);
+          if (next) await c.query('delete from sessions where user_id = $1 and token_hash <> $2', [me.id, hashToken(sessionToken(req))]);
+          if (photos.length) { await c.query('delete from photos where id like $1', [`${me.id}:u:%`]); await savePhotos(c, me.id, 'u', photos); }
+          await audit(c, me, 'แก้ไขข้อมูลของตัวเอง', `${email !== row.email ? 'เปลี่ยนอีเมล ' : ''}${next ? 'เปลี่ยนรหัสผ่าน' : ''}`.trim() || null);
+        });
+      } catch (err) {
+        if (err.code === '23505') return send(res, 409, { error: 'email_taken' });
+        throw err;
+      }
+      return send(res, 200, { ok: true });
+    }
     // บัญชีผู้ใช้: POST /api/users = เพิ่ม · POST /api/users/:id = แก้ไข/ปิดบัญชี
     // ผู้ดูแลจัดการได้ทุกบทบาท · หัวหน้าทีมจัดการได้เฉพาะช่าง (หน้าทีมช่าง)
     const userUrl = req.method === 'POST' && (req.url === '/api/users' ? [] : req.url.match(/^\/api\/users\/([\w-]{1,40})$/));

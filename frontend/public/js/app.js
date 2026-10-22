@@ -973,18 +973,19 @@ function renderMe() {
   const u = currentUser;
   const row = (icon, label, fn, sub = '') => `<button class="srow" onclick="${fn}"><i>${ic(icon, 20, 1.8)}</i><span>${label}${sub ? `<small>${sub}</small>` : ''}</span>${ic('right', 16, 2)}</button>`;
   return pageHead('ฉัน')
-  + `<div class="profile">${avatarHtml(u, 52)}<div><b>${esc(u.name)}</b><small>${ROLE_LABEL[u.role]} · ${u.customer ? esc(custName(u.customer)) : u.team ? teams[u.team] : 'Guru IT Solution'}</small></div></div>
-  <div class="sgroup"><h4>ของฉัน</h4>
+  + `<div class="me-card">${avatarHtml(u, 76)}<b>${esc(u.name)}</b><small>${ROLE_LABEL[u.role]} · ${u.customer ? esc(custName(u.customer)) : u.team ? teams[u.team] : 'Guru IT Solution'}</small><small>${esc(u.email || '')}</small>
+    <button class="btn soft sm" onclick="openProfile()">${ic('pen', 16, 2)}แก้ไขข้อมูลของฉัน</button></div>
+  <div class="sgroup">
     ${row('note', 'โน้ตส่วนตัว', 'openNotes()', `${store.get(notesKey(), []).length} โน้ต · เห็นเฉพาะคุณ`)}
     ${row('bell', 'การแจ้งเตือน', 'openNotifs()', !('Notification' in window) ? 'เบราว์เซอร์นี้แจ้งเตือนได้เฉพาะในแอป' : Notification.permission === 'granted' ? 'เด้งเตือนบนเครื่องนี้: เปิดอยู่' : 'แตะเพื่อเปิดเด้งเตือนบนเครื่องนี้')}
   </div>
-  <div class="sgroup"><h4>การแสดงผล</h4>
+  ${fold('me-disp', 'การแสดงผล', `<div class="sgroup">
     <div class="srow static"><i>${ic('palette', 20, 1.8)}</i><span>โหมดสี</span></div>
     <div class="theme-pick" role="radiogroup" aria-label="โหมดสี">${THEMES.map(([k, l, i]) => `<button role="radio" aria-checked="${theme === k}" class="${theme === k ? 'on' : ''}" onclick="setTheme('${k}')"><span class="sw sw-${k}">${ic(i, 20, 1.8)}</span>${l}</button>`).join('')}</div>
     <div class="srow static"><i>${ic('globe', 20, 1.8)}</i><span>ภาษา</span></div>
     <div class="theme-pick" role="radiogroup" aria-label="ภาษา">${LANGS.map(([k, l]) => `<button role="radio" aria-checked="${lang === k}" class="${lang === k ? 'on' : ''}" onclick="setLang('${k}')"><span class="sw sw-lang">${k.toUpperCase()}</span>${l}</button>`).join('')}</div>
     <button class="srow" onclick="setDense(${!dense})"><i>${ic(dense ? 'rows' : 'cards', 20, 1.8)}</i><span>มุมมองรายการ<small>${dense ? 'แบบย่อ — แถวเดียว' : 'แบบเต็ม — แสดงรายละเอียด'}</small></span><span class="switch ${dense ? 'on' : ''}" aria-hidden="true"></span></button>
-  </div>
+  </div>`, { open: false })}
   ${canApproveMembers(u, u.customer) ? `<div class="sgroup"><h4>บริษัทของฉัน</h4>${row('team', 'ชวนพนักงานเข้าใช้งาน', 'openInvite()', 'ส่งลิงก์สมัคร — คุณเป็นผู้อนุมัติ')}${row('user', 'เพิ่มพนักงานเอง', 'openStaffForm()', 'สร้างบัญชีให้พนักงานทันที ไม่ต้องรอสมัคร')}${Object.values(users).filter(x => x.role === 'customer' && x.customer === u.customer && !x.approver && x.id !== u.id).map(x => row('user', esc(x.name) + (x.removed ? ' (ปิดแล้ว)' : ''), `openStaffForm('${x.id}')`, x.email || '')).join('')}</div>` : ''}
   ${isManager(u) ? `<div class="sgroup"><h4>จัดการ</h4>
     ${canManageUsers(u) ? row('team', 'ผู้ใช้และสิทธิ์', "goTab('users')") : ''}
@@ -992,8 +993,44 @@ function renderMe() {
     ${row('building', 'พาร์ทเนอร์และสถานที่', "goTab('partners')")}
     ${row('chart', 'รายงานผลงาน', "rpt.view='summary';goTab('reports')")}
     ${row('shield', 'บันทึกตรวจสอบ', "rpt.view='audit';goTab('reports')")}</div>` : ''}
-  <div class="sgroup"><h4>บัญชี</h4>${row('logout', 'ออกจากระบบ', 'logout()')}</div>
+  <div class="sgroup"><h4>บัญชี</h4>${row('lock', 'เปลี่ยนรหัสผ่าน', 'openPassword()')}${row('logout', 'ออกจากระบบ', 'logout()')}</div>
   <p class="about"><img src="img/icon-192.png" alt="" width="28" height="28">Guru IT Service Desk</p>`;
+}
+
+/* แก้ข้อมูลของตัวเอง (ทุกบทบาท) — เปลี่ยนอีเมลต้องยืนยันรหัสปัจจุบัน */
+function openProfile() {
+  const u = currentUser; techPhoto = null;
+  openModal(`<div class="mh"><h3>แก้ไขข้อมูลของฉัน</h3>${xbtn()}</div>
+    <button type="button" class="join-photo" onclick="$('techFile').click()"><i id="techPh">${u.photo && PHOTOS[u.photo] ? `<img src="${PHOTOS[u.photo]}" alt="">` : ic('camera', 28, 1.7)}</i>เปลี่ยนรูปโปรไฟล์</button>
+    <input type="file" id="techFile" accept="image/*" hidden onchange="techPhotoPick(this)">
+    <label class="fl">ชื่อ-นามสกุล <em>*</em><input id="mName" maxlength="80" value="${esc(u.name)}"></label>
+    <label class="fl">เบอร์โทร<input id="mPhone" type="tel" inputmode="tel" maxlength="15" placeholder="เช่น 081-234-5678" value="${esc(u.phone || '')}"></label>
+    ${emailField('mEmail', u.email, `oninput="$('mCur').style.display = normEmail(this.value) === currentUser.email ? 'none' : ''"`)}
+    <label class="fl" id="mCur" style="display:none">รหัสผ่านปัจจุบัน (ยืนยันการเปลี่ยนอีเมล) <em>*</em><input id="mCurPw" type="password" autocomplete="current-password" maxlength="200"></label>
+    <div class="err" id="mErr" role="alert"></div>
+    <div class="row end"><button class="btn" onclick="closeModal()">ยกเลิก</button><button class="btn primary" onclick="saveProfile()">บันทึก</button></div>`);
+}
+async function saveProfile() {
+  const u = currentUser, name = $('mName').value.trim(), phone = $('mPhone').value.replace(/[\s-]/g, ''), email = normEmail($('mEmail').value), cur = $('mCurPw').value;
+  const err = !name ? 'กรุณากรอกชื่อ' : phone && !validPhone(phone) ? 'เบอร์โทรไม่ถูกต้อง (เช่น 0812345678)' : emailErr(email, u.id) || (email !== u.email && !cur ? 'ใส่รหัสผ่านปัจจุบันเพื่อเปลี่ยนอีเมล' : '');
+  if (err) { $('mErr').textContent = err; return; }
+  if (!await call('/me', { name, phone, email, currentPassword: cur, photo: techPhoto ? PHOTOS[techPhoto] : undefined }, 'mErr')) return;
+  closeModal(); toast('บันทึกแล้ว'); renderAll();
+}
+function openPassword() {
+  openModal(`<div class="mh"><h3>เปลี่ยนรหัสผ่าน</h3>${xbtn()}</div>
+    <label class="fl">รหัสผ่านปัจจุบัน <em>*</em><input id="pwCur" type="password" autocomplete="current-password" maxlength="200"></label>
+    <label class="fl">รหัสผ่านใหม่ <em>*</em><input id="pwNew" type="password" autocomplete="new-password" maxlength="200" placeholder="อย่างน้อย 8 ตัว"></label>
+    <label class="fl">พิมพ์รหัสผ่านใหม่อีกครั้ง <em>*</em><input id="pwNew2" type="password" autocomplete="new-password" maxlength="200"></label>
+    <div class="err" id="pwErr" role="alert"></div>
+    <div class="row end"><button class="btn" onclick="closeModal()">ยกเลิก</button><button class="btn primary" onclick="savePassword()">เปลี่ยนรหัสผ่าน</button></div>`);
+}
+async function savePassword() {
+  const u = currentUser, cur = $('pwCur').value, next = $('pwNew').value;
+  const err = !cur ? 'กรุณาใส่รหัสผ่านปัจจุบัน' : pwErr(next, true) || (next !== $('pwNew2').value ? 'รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน' : '');
+  if (err) { $('pwErr').textContent = err; return; }
+  if (!await call('/me', { name: u.name, phone: u.phone || '', email: u.email, currentPassword: cur, newPassword: next }, 'pwErr')) return;
+  closeModal(); toast('เปลี่ยนรหัสผ่านแล้ว — เครื่องอื่นที่เข้าไว้จะถูกออกจากระบบ');
 }
 
 /* ---------- Sheet (หน้าซ้อน: งาน / พาร์ทเนอร์) ---------- */
