@@ -1659,14 +1659,18 @@ function byPartner(rows) {
 }
 function setRptView(v) { rpt.view = v; renderAll(); }
 /* แดชบอร์ดสรุปผล: เลือกดูแยกตามพาร์ทเนอร์ / ช่าง / หมวดงาน / สถานะ เป็นแท่งเทียบกัน */
-const DASH = [['partner', 'พาร์ทเนอร์'], ['tech', 'ช่าง'], ['cat', 'หมวดงาน'], ['status', 'สถานะ']];
+const DASH = [['partner', 'พาร์ทเนอร์'], ['tech', 'ช่าง'], ['cat', 'หมวดงาน'], ['status', 'สถานะ'], ['time', 'ตามเวลา']];
 function setRptDim(k) { rpt.dim = k; renderAll(); }
 function dashGroups(rows) {
   const g = {}, add = (k, label, h) => { const o = g[k] ||= { label, n: 0, h: 0 }; o.n++; o.h += h; };
   if (rpt.dim === 'status') visibleTickets(currentUser).filter(x => rpt.partner === 'all' || x.customer === rpt.partner).forEach(x => add(x.status, STATUS_LABEL[x.status], 0));
   else rows.forEach(x => { const h = +x.report.hours || 0;
-    if (rpt.dim === 'tech') add(x.report.by, nameOf(x.report.by), h); else if (rpt.dim === 'cat') add(catOf(x), CATEGORIES[catOf(x)].label, h); else add(x.customer, custName(x.customer), h); });
-  return Object.values(g).sort((a, b) => b.n - a.n);
+    if (rpt.dim === 'tech') add(x.report.by, nameOf(x.report.by), h); else if (rpt.dim === 'cat') add(catOf(x), CATEGORIES[catOf(x)].label, h);
+    else if (rpt.dim === 'time') { // รายวัน (ช่วงสั้น) หรือรายสัปดาห์เมื่อเลือก 90 วัน/ทั้งหมด — เรียงตามวันที่
+      const d = new Date(x.report.at); if (['90', 'all'].includes(rpt.period)) d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+      add(d.toLocaleDateString('sv'), `${['90', 'all'].includes(rpt.period) ? 'สัปดาห์ ' : ''}${fmtD(d)}`, h); }
+    else add(x.customer, custName(x.customer), h); });
+  return Object.entries(g).sort(rpt.dim === 'time' ? (a, b) => (a[0] < b[0] ? -1 : 1) : (a, b) => b[1].n - a[1].n).map(e => e[1]);
 }
 const dashHtml = rows => { const d = dashGroups(rows), max = Math.max(1, ...d.map(x => x.n));
   return `<div class="tchips dim" role="tablist" aria-label="เลือกข้อมูล">${DASH.map(([k, l]) => `<button role="tab" aria-selected="${rpt.dim === k}" class="${rpt.dim === k ? 'on' : ''}" onclick="setRptDim('${k}')">${l}</button>`).join('')}</div>
