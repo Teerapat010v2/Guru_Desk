@@ -436,7 +436,7 @@ function ticketCard(tk, opts = {}) {
   return `<div class="tcard" onclick="openTicket('${tk.id}')" role="button" tabindex="0">
     <div class="tc-h">${ticketIcon(tk)}<div class="tc-t"><b>${esc(tk.subject)}</b><small>${tk.id} · ${esc(custName(tk.customer))}</small></div>
       ${['urgent', 'high'].includes(tk.priority) ? `<span class="prio prio-${tk.priority}">${PRIORITY_LABEL[tk.priority]}</span>` : ''}</div>
-    <div class="tc-f">${complaintTag(tk)}<span class="pill p-${tk.status}">${STATUS_LABEL[tk.status]}</span>
+    <div class="tc-f">${typeTag(tk)}${complaintTag(tk)}<span class="pill p-${tk.status}">${STATUS_LABEL[tk.status]}</span>
       ${isManager(u) ? `<span class="tag ${tk.assignee ? '' : 'warn'}">${ic('user', 13, 2)}${tk.assignee ? esc(nameOf(tk.assignee)) : 'ยังไม่มอบหมาย'}</span>` : `<span class="tag">${esc(siteOf(tk)?.name || '-')}</span>`}
       ${tk.plan ? `<span class="tag">${ic('clock', 13, 2)}${tk.plan.date.slice(5)} ${tk.plan.from}–${tk.plan.to}</span>` : ''}${tk.mode === 'remote' ? `<span class="tag">${ic('globe', 13, 2)}รีโมท</span>` : ''}
       ${tk.rating ? starsHtml(tk.rating.score, 12) : ''}<span class="sp"></span>${qbtn}</div>
@@ -466,12 +466,15 @@ function homeCustomer(u) {
 }
 
 /* ---------- ประเภทงานสำหรับทีมงาน: งานบริการ · ร้องเรียน · โปรเจกต์ (ลูกค้าเห็นรายการเดียว ไม่ต้องเลือก) ---------- */
-const typeOf = tk => tk.type || 'service';
+const isMAJob = tk => /^ตรวจเช็ก MA/.test(tk.subject) || !!tk.report?.checklist;
+const typeOf = tk => tk.type === 'complaint' ? 'complaint' : isMAJob(tk) ? 'ma' : 'service';
+/* ป้ายประเภทงานให้ทีมงานแยกออกทันที: MA (น้ำเงินเข้ม) · แจ้งเหตุ (เทา) · ร้องเรียนมีป้ายของตัวเอง */
+const typeTag = tk => tk.type === 'complaint' ? '' : isMAJob(tk) ? '<span class="tag ma">MA</span>' : '<span class="tag">แจ้งเหตุ</span>';
 const ofType = (u, arr) => isStaff(u) ? arr.filter(tk => typeOf(tk) === jobType) : arr;
 function setJobType(k) { jobType = k; homeTab = null; filter = 'all'; renderAll(); }
 function typeChips(u) {
   const open = k => visibleTickets(u).filter(tk => typeOf(tk) === k && isOpen(tk)).length;
-  const items = [['service', TYPE_LABEL.service, 'tool', open('service')], ['complaint', TYPE_LABEL.complaint, 'alert', open('complaint')]];
+  const items = [['service', TYPE_LABEL.service, 'tool', open('service')], ['ma', TYPE_LABEL.ma, 'clock', open('ma')], ['complaint', TYPE_LABEL.complaint, 'alert', open('complaint')]];
   return `<div class="tchips" role="tablist" aria-label="ประเภทงาน">${items.map(([k, l, icon, n]) =>
     `<button role="tab" aria-selected="${jobType === k}" class="${jobType === k ? 'on' : ''} ${k === 'complaint' && n ? 'hot' : ''}" onclick="setJobType('${k}')">${ic(icon, 18, 1.9)}${l}${n ? ` <b>${n}</b>` : ''}</button>`).join('')}</div>`;
 }
@@ -1157,7 +1160,7 @@ function ticketSheet(id) {
   }
 
   const summary = `<div class="card">
-    <div class="badges"><span class="pill p-${tk.status}">${STATUS_LABEL[tk.status]}</span>${['urgent', 'high'].includes(tk.priority) ? `<span class="prio prio-${tk.priority}">${PRIORITY_LABEL[tk.priority]}</span>` : ''}<span class="sp"></span><span class="hint">${cat.label}</span></div>
+    <div class="badges">${typeTag(tk)}<span class="pill p-${tk.status}">${STATUS_LABEL[tk.status]}</span>${['urgent', 'high'].includes(tk.priority) ? `<span class="prio prio-${tk.priority}">${PRIORITY_LABEL[tk.priority]}</span>` : ''}<span class="sp"></span><span class="hint">${cat.label}</span></div>
     <h3 class="tk-title">${esc(tk.subject)}</h3>
     <dl class="facts">
       <dt>ลูกค้า</dt><dd>${isManager(u) ? `<a class="lnk" onclick="openPartner('${tk.customer}')">${esc(custName(tk.customer))}</a>` : esc(custName(tk.customer))}</dd>
@@ -1220,7 +1223,7 @@ function suggestHours(tk) {
 }
 /* เช็กลิสต์งาน MA ตามใบ Customer Service Report: อุปกรณ์ระบบ + เครื่องผู้ใช้ — เฉพาะลูกค้าสัญญา MA */
 const MA_HW = ['Firewall', 'Server', 'Switch', 'NAS', 'UPS', 'CCTV', 'Printers', 'Router ISP', 'Wireless AP'];
-const isMA = tk => customers[tk.customer]?.contract === 'ma';
+const isMA = isMAJob;
 const maForm = tk => !isMA(tk) ? '' : `<div class="fl">เช็กลิสต์ MA — อุปกรณ์ระบบ</div>
   <div class="card ma-box">${MA_HW.map((h, i) => `<div class="ma-row"><label><input type="checkbox" id="mhw${i}"> ${h}</label><input id="mhn${i}" placeholder="หมายเหตุ" maxlength="200" aria-label="หมายเหตุ ${h}"></div>`).join('')}</div>
   <div class="fl">เครื่องผู้ใช้ (ไม่ต้องกรอกทุกช่อง)</div>

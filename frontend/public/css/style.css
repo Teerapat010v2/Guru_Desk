@@ -1059,3 +1059,7 @@ textarea,input,select{border-radius:14px}
 #modalCard .ma-chk label{font-size:0.75rem;gap:4px}
 #modalCard .ma-row:has(.ma-chk){grid-template-columns:minmax(0,1fr) auto}
 #modalCard .ma-chk{gap:8px}
+
+/* ป้ายประเภทงาน: MA น้ำเงินเข้ม ตัวขาว · แจ้งเหตุเทาปกติ */
+.tag.ma{background:var(--primary);color:#fff;font-weight:600}
+@media (max-width:959px){ .tchips[aria-label="ประเภทงาน"]{grid-template-columns:repeat(3,minmax(0,1fr))} .tchips[aria-label="ประเภทงาน"] button svg{display:none} }

@@ -28,7 +28,7 @@ const STATUS_LABEL = {
 const PRIORITY_LABEL = { urgent: 'ด่วนมาก', high: 'สูง', medium: 'ปานกลาง', low: 'ต่ำ' };
 const PRIORITY_ORDER = { urgent: 0, high: 1, medium: 2, low: 3 };
 /* ประเภทงาน (ไม่มี type = งานบริการ) — โปรเจกต์แยกเป็นข้อมูลของตัวเองใน projects */
-const TYPE_LABEL = { service: 'งานบริการ', complaint: 'ร้องเรียน' };
+const TYPE_LABEL = { service: 'แจ้งเหตุ', ma: 'งาน MA', complaint: 'ร้องเรียน' };
 
 /* ภาษาที่ลูกค้าเข้าใจ: ย่อ 6 สถานะเหลือ 4 ขั้น */
 const CUST_STEPS = ['รับเรื่อง', 'มอบหมายช่าง', 'กำลังแก้ไข', 'เสร็จสิ้น'];
