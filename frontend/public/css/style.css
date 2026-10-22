@@ -1,5 +1,5 @@
 html{font-size:16px}
-@media (max-width:599px){html{font-size:clamp(17px,2.2vw + 10px,19px)}}
+@media (max-width:599px){html{font-size:16px}}   /* เดิม 17–19px ทำให้ทุกอย่างใหญ่เกินบนมือถือ — แอปทั่วไปใช้ ~16px */
 /* Guru IT Service Desk — สไตล์แบน สะอาด (หัวข้อใหญ่ · การ์ดสีอ่อนไม่มีเงา · แท็บข้อความ · ปุ่ม + ลอย)
    2 โหมดสี: กลางวัน (light) · กลางคืน (dark) — สีหลักสีเดียว (น้ำเงินโลโก้) สีสถานะเป็นจุดเล็ก ๆ
    เลย์เอาต์: มือถือ = เมนูล่าง · คอมพิวเตอร์ (≥960px) = เมนูซ้าย + เนื้อหากว้าง + รายละเอียดเป็นแผงขวา */
@@ -849,3 +849,6 @@ textarea,input,select{border-radius:14px}
 .status-card .st-t{flex:1;min-width:0}
 .status-card .st-row{align-items:flex-start}
 .status-card .st-who{position:static;flex:none;max-width:36%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.6875rem;color:var(--text-2);margin:2px 0 0;text-align:right}
+
+/* ฐานตัวอักษรมือถือลดเป็น 16px แล้ว — ตัวเล็กสุดต้องไม่ต่ำกว่า 11px */
+@media (max-width:959px){ .cp,.cp span{font-size:0.6875rem} }
