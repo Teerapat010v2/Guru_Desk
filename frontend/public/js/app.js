@@ -1115,7 +1115,8 @@ function ticketSheet(id) {
     return `<div class="bubble ${mine ? 'me' : ''} ${c.vis === 'internal' ? 'internal' : ''}">
       <div class="meta">${c.vis === 'internal' ? `${ic('lock', 12, 2.2)}บันทึกภายใน · ` : ''}${esc(nameOf(c.by))}${staff && cust ? ' (ทีมงาน)' : ''} · ${ago(c.at)}</div>${c.text ? `<div class="btxt">${esc(c.text)}</div>` : ''}${gallery(c.photos)}</div>`;
   }).join('') || '<div class="hint">ยังไม่มีข้อความ</div>';
-  const convo = fold('d-chat', cust ? 'คุยกับทีมงาน' : 'การสนทนา', `<div class="card"><div class="thread">${msgs}</div>${composerHtml(tk)}</div>`, { count: seen.length });
+  // ลูกค้าเห็นรายละเอียดก่อน การสนทนาพับไว้ (แตะเพื่อเปิด) ลดการเลื่อนหา
+  const convo = fold('d-chat', cust ? 'คุยกับทีมงาน' : 'การสนทนา', `<div class="card"><div class="thread">${msgs}</div>${composerHtml(tk)}</div>`, { count: seen.length, open: !cust });
   const timeline = `<div class="timeline">${tk.history.slice().reverse().map(h => `<div><b>${h.from ? STATUS_LABEL[h.from] + ' → ' : ''}${STATUS_LABEL[h.to]}</b> <span>โดย ${esc(nameOf(h.by))}</span><br><span class="mono">${fmt(h.at)}</span>${h.reason ? `<div class="reason">${esc(h.reason)}</div>` : ''}</div>`).join('')}</div>`;
   const history = fold('d-hist', 'ประวัติ', `<div class="card">${timeline}</div>`, { open: false, count: tk.history.length });
 
