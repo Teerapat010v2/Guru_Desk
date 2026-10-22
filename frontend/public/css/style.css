@@ -1153,3 +1153,10 @@ textarea,input,select{border-radius:14px}
 .phead{flex-wrap:wrap}
 .ph-t{flex:1 1 6rem}
 .ph-a{margin-left:auto}
+
+/* หัวเพจ: ปุ่มอยู่แถวเดียวกับหัวข้อเสมอ ไม่ตกลงบรรทัดใหม่ — หัวข้อหดได้ บรรทัดรองตัดด้วย … บรรทัดเดียว */
+.phead{flex-wrap:nowrap}
+.ph-t{flex:1 1 0;min-width:0}
+.ph-t small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ph-a{flex:none;margin-left:0}
+@media (max-width:359px){.ph-a .ftool,.ph-a .ibtn{width:34px}}
