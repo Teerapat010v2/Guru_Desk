@@ -56,7 +56,8 @@ CREATE TABLE tickets (
   planned_on   date,                       -- วันที่วางแผนไว้ (ดู migrations/002_schedule.sql)
   planned_from time,
   planned_to   time,
-  CONSTRAINT tickets_planned_range CHECK (planned_from IS NULL OR planned_to IS NULL OR planned_from < planned_to)
+  CONSTRAINT tickets_planned_range CHECK (planned_from IS NULL OR planned_to IS NULL OR planned_from < planned_to),
+  work_mode    text NOT NULL DEFAULT 'onsite' CHECK (work_mode IN ('onsite','remote'))   -- ดู migrations/003_work_mode.sql
 );
 
 CREATE TABLE ticket_history (

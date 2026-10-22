@@ -206,7 +206,7 @@ http.createServer(async (req, res) => {
       const tickets = tks.map(t => {
         const r = R[t.id], history = (H[t.id] ?? []).map(h => ({ from: h.from_status, to: h.to_status, by: h.by_user, at: h.at, reason: h.reason }));
         return {
-          id: t.id, type: t.type, customer: t.customer_id, siteId: t.site_id, location: t.location ?? '', subject: t.subject,
+          id: t.id, type: t.type, customer: t.customer_id, siteId: t.site_id, location: t.location ?? '', subject: t.subject, mode: t.work_mode ?? 'onsite',
           category: t.category, priority: t.priority, status: t.status, assignee: t.assignee_id, version: t.version,
           plan: t.planned_on ? { date: t.planned_on.toLocaleDateString('sv-SE'), from: t.planned_from.slice(0, 5), to: t.planned_to.slice(0, 5) } : null, missionId: null, photos: P[`${t.id}:t`] ?? [],
           history, comments: (C[t.id] ?? []).map(c => ({ by: c.by_user, vis: c.vis, text: c.text, at: c.at, photos: P[`${t.id}:c${c.id}`] ?? [] })),
@@ -313,7 +313,7 @@ http.createServer(async (req, res) => {
       }
     }
     // การกระทำกับงาน: ตรวจสิทธิ์ทุกครั้งที่ server
-    const act = req.method === 'POST' ? req.url.match(/^\/api\/tickets\/(T-\d{1,10})\/(status|assign|comments|worklog|resolve|signoff|rating|schedule)$/) : null;
+    const act = req.method === 'POST' ? req.url.match(/^\/api\/tickets\/(T-\d{1,10})\/(status|assign|comments|worklog|resolve|signoff|rating|schedule|mode)$/) : null;
     if (act) {
       const me = await currentUser(req);
       if (!me) return send(res, 401, { error: 'not_signed_in' });
@@ -466,6 +466,14 @@ http.createServer(async (req, res) => {
         const info = { ticketId: id, subject: m?.subject, customer: m?.customer, contract: m?.contract, address: m?.address, date, from, to };
         Promise.all([sendScheduleMail(m?.cust, info), sendScheduleMail(m?.tech, info)]).catch(err => console.error('mail:', err.message));
         await audit(pool, me, `วางแผนงาน ${id}`, `${date} ${from}-${to}`);
+        return send(res, 200, { ok: true });
+      }
+      if (action === 'mode') {
+        // ไปหน้างานหรือรีโมท: หัวหน้าทีม/ผู้ดูแล หรือช่างที่รับงานนั้น
+        if (!isManager(me) && !(me.role === 'technician' && t.assignee_id === me.id)) return send(res, 403, { error: 'forbidden' });
+        if (!['onsite', 'remote'].includes(body.mode)) return send(res, 400, { error: 'invalid_mode' });
+        await pool.query('update tickets set work_mode = $2 where id = $1', [id, body.mode]);
+        await audit(pool, me, `รูปแบบงาน ${id}`, body.mode);
         return send(res, 200, { ok: true });
       }
       if (action === 'comments') {

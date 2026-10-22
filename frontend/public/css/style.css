@@ -742,3 +742,6 @@ textarea,input,select{border-radius:14px}
   .tc-f{margin:8px 0 0 44px;gap:5px}
   .tcard .btn.sm{min-height:34px;padding:4px 10px}
 }
+
+/* แถวงานบนหน้าหลักช่าง: ไอคอนหรือรูปลูกค้าขนาดเล็ก */
+.card .trow .tc-ic{width:32px;height:32px;border-radius:9px;flex:none}

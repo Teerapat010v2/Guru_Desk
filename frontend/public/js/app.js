@@ -327,6 +327,10 @@ function actionsFor(u, tk) {
   if (u.role === 'customer' && isOpen(tk)) acts.push({ label: 'ขอเลื่อนนัด', short: 'เลื่อนนัด', fn: `openReschedule('${tk.id}')`, primary: false, icon: 'clock' });
   if (isManager(u) && tk.status !== 'closed') acts.push({ label: tk.plan ? 'แก้ไขวันและเวลา' : 'วางแผนวันและเวลา', short: 'วางแผน', fn: `openPlan('${tk.id}')`, primary: false, icon: 'clock' });
   if (canAssign(u, tk)) acts.push({ label: tk.assignee ? 'ย้ายผู้รับผิดชอบ' : 'มอบหมายช่าง', short: 'มอบหมาย', fn: `openAssign('${tk.id}')`, primary: !tk.assignee, icon: 'user' });
+  if (isStaff(u) && tk.status !== 'closed' && (isManager(u) || tk.assignee === u.id)) {
+    const to = tk.mode === 'remote' ? 'ไปหน้างาน' : 'รีโมท';
+    acts.push({ label: `เปลี่ยนเป็น${to}`, short: to, fn: `setMode('${tk.id}', '${tk.mode === 'remote' ? 'onsite' : 'remote'}')`, primary: false, icon: 'pin' });
+  }
   if (canSignOff(u, tk) && u.role === 'technician') acts.push({ label: 'ให้ลูกค้าเซ็นรับงานบนเครื่องนี้', short: 'ให้ลูกค้าเซ็น', fn: `openSignOff('${tk.id}')`, primary: true, icon: 'pen' });
   (STATUS_FLOW[tk.status] || []).filter(to => canTransition(u, tk, to)).forEach(to => {
     const forward = to === 'resolved' || (to === 'in_progress' && ['assigned', 'pending'].includes(tk.status));
@@ -430,7 +434,7 @@ function ticketCard(tk, opts = {}) {
       ${['urgent', 'high'].includes(tk.priority) ? `<span class="prio prio-${tk.priority}">${PRIORITY_LABEL[tk.priority]}</span>` : ''}</div>
     <div class="tc-f">${complaintTag(tk)}<span class="pill p-${tk.status}">${STATUS_LABEL[tk.status]}</span>
       ${isManager(u) ? `<span class="tag ${tk.assignee ? '' : 'warn'}">${ic('user', 13, 2)}${tk.assignee ? esc(nameOf(tk.assignee)) : 'ยังไม่มอบหมาย'}</span>` : `<span class="tag">${esc(siteOf(tk)?.name || '-')}</span>`}
-      ${tk.plan ? `<span class="tag">${ic('clock', 13, 2)}${tk.plan.date.slice(5)} ${tk.plan.from}–${tk.plan.to}</span>` : ''}
+      ${tk.plan ? `<span class="tag">${ic('clock', 13, 2)}${tk.plan.date.slice(5)} ${tk.plan.from}–${tk.plan.to}</span>` : ''}${tk.mode === 'remote' ? `<span class="tag">${ic('globe', 13, 2)}รีโมท</span>` : ''}
       ${tk.rating ? starsHtml(tk.rating.score, 12) : ''}<span class="sp"></span>${qbtn}</div>
   </div>`;
 }
@@ -502,7 +506,7 @@ function homeTech(u) {
   + `<div class="kpis tech-kpis"><div class="kpi"><b>${todo}</b><span>ต้องทำ</span></div><div class="kpi"><b>${todayN}</b><span>นัดวันนี้</span></div><div class="kpi"><b>${doneMonth}</b><span>เสร็จเดือนนี้</span></div></div>`
   + (m ? `<button class="mcard" onclick="goTab('mission')"><i>${ic('pin', 22, 1.8)}</i><div><b>ภารกิจที่กำลังทำ</b><small>${MISSION_LABEL[m.status]}</small></div>${ic('right', 18, 2)}</button>` : '')
   + (() => { const a = mine.filter(x => x.assignee === u.id && isOpen(x)).sort(byPriority); return a.length ? `<div class="sec-h"><h2>งานที่ได้รับมอบหมาย <span class="cnt">${a.length}</span></h2><button onclick="goTab('tickets')">ดูทั้งหมด ›</button></div>
-    <div class="card">${a.slice(0, 3).map(x => `<button class="trow" onclick="openTicket('${x.id}')"><div class="tr-m"><b>${esc(x.subject)}</b><small>${esc(siteLabel(x))} · ${STATUS_LABEL[x.status]}</small></div>${ic('right', 16, 2)}</button>`).join('')}</div>` : ''; })();
+    <div class="card">${a.slice(0, 3).map(x => `<button class="trow" onclick="openTicket('${x.id}')">${ticketIcon(x)}<div class="tr-m"><b>${esc(x.subject)}</b><small>${x.mode === 'remote' ? 'รีโมท' : esc(siteLabel(x))} · ${STATUS_LABEL[x.status]}</small></div>${ic('right', 16, 2)}</button>`).join('')}</div>` : ''; })();
 }
 /* ประวัติการทำงานของช่าง: แยกเป็นเดือน เดือนล่าสุดเปิดไว้ */
 function renderHistory() {
@@ -1394,6 +1398,10 @@ function openPlan(id) {
     <label class="fl">ถึง <em>*</em><input id="plTo" type="time" value="${tk.plan?.to || '12:00'}"></label></div>
     <div class="err" id="plErr" role="alert"></div>
     <div class="row end"><button class="btn" onclick="closeModal()">ยกเลิก</button>${tk.plan ? `<button class="btn ghost-red" onclick="savePlan('${tk.id}', true)">ล้างแผน</button>` : ''}<button class="btn primary" onclick="savePlan('${tk.id}')">บันทึก</button></div>`);
+}
+async function setMode(id, mode) {
+  if (!await call(`/tickets/${id}/mode`, { mode })) return;
+  toast(mode === 'remote' ? 'เปลี่ยนเป็นรีโมทแล้ว' : 'เปลี่ยนเป็นไปหน้างานแล้ว'); renderAll();
 }
 async function savePlan(id, clear = false) {
   const body = clear ? { date: '' } : { date: $('plDate').value, from: $('plFrom').value, to: $('plTo').value };
