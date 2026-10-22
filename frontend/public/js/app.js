@@ -287,12 +287,12 @@ function tabBadge(u, id) {
 function renderTabbar() {
   const list = tabsFor(currentUser);
   if (!screensFor(currentUser).has(tab)) tab = 'home';
-  $('tabbar').innerHTML = `<div class="side-brand"><button class="logo-btn" onclick="goHome()" aria-label="กลับหน้าหลัก"><img src="img/logo.png" alt="Guru IT Solution Co., Ltd." width="140" height="41"></button><small>Service Desk</small></div>`
+  $('tabbar').innerHTML = `<div class="side-brand"><button class="logo-btn" onclick="goHome()" aria-label="กลับหน้าหลัก">${wordmark()}</button><small>Service Desk</small></div>`
   + list.map(x => {
     const b = tabBadge(currentUser, x.id);
     return `<button class="tab ${x.id === tab ? 'on' : ''}" onclick="goTab('${x.id}')" ${x.id === tab ? 'aria-current="page"' : ''}>
       <i>${ic(x.icon, 24, 1.7)}${b ? `<span class="bdg" aria-label="${b} รายการ">${b}</span>` : ''}</i><span>${x.label}</span></button>`;
-  }).join('') + (tab === 'tickets' ? sideFilters() : '');
+  }).join('') + (tab === 'tickets' ? sideFilters() : '') + `<div class="side-foot">${footLogo}</div>`;
 }
 /* สถานะงานในแถบซ้าย (คอมพิวเตอร์) — มือถือใช้แท็บด้านบนของหน้างานแทน */
 function sideFilters() {
@@ -381,13 +381,15 @@ function custStatus(tk) {
 /* ---------- ส่วนประกอบหน้า ---------- */
 const xbtn = () => `<button class="xbtn" onclick="closeModal()" aria-label="ปิด">${ic('x', 18, 2.2)}</button>`;
 const ibtn = (icon, label, fn, pressed) => `<button class="ibtn ${pressed ? 'on' : ''}" onclick="${fn}" title="${label}" aria-label="${label}" ${pressed != null ? `aria-pressed="${!!pressed}"` : ''}>${ic(icon, 22, 1.7)}</button>`;
+const wordmark = () => '<span class="wm">Guru<b>IT</b></span>';
+const footLogo = '<img class="foot-logo" src="img/logo.png" alt="Guru IT Solution Co., Ltd." width="80" height="24">';
 function pageHead(title, sub = '', actions = '', opt = {}) {
   /* ย้อนกลับได้ทุกหน้าที่เปิดต่อจากหน้าอื่น (opt.back = false เพื่อซ่อน) */
   const back = opt.back !== false && tabStack.length > 0 && !tabsFor(currentUser).some(t => t.id === tab);   // หน้าในเมนูล่างไม่ต้องมีปุ่มย้อนกลับ
   const unread = myNotifs().filter(n => !n.read).length;
   return `<header class="phead">
     ${back ? `<button class="ibtn back" onclick="goBack()" aria-label="กลับไปหน้าก่อนหน้า" title="กลับไปหน้าก่อนหน้า">${ic('back', 22, 2)}</button>` : ''}
-    <div class="ph-t">${opt.logo ? '<button class="logo-btn" onclick="goHome()" aria-label="กลับหน้าหลัก"><img class="ph-logo" src="img/logo.png" alt="Guru IT Solution" width="96" height="28"></button>' : ''}<h1>${title}</h1>${sub ? `<small>${esc(sub)}</small>` : ''}</div>
+    <div class="ph-t">${opt.logo ? '<button class="logo-btn" onclick="goHome()" aria-label="กลับหน้าหลัก">' + wordmark() + '</button>' : ''}<h1>${title}</h1>${sub ? `<small>${esc(sub)}</small>` : ''}</div>
     <div class="ph-a">${actions}${opt.tools === false ? '' : toolBtns()}<button class="ibtn bell" onclick="openNotifs()" title="การแจ้งเตือน" aria-label="การแจ้งเตือน${unread ? ` ยังไม่อ่าน ${unread}` : ''}">${ic('bell', 22, 1.7)}${unread ? `<b class="tbdg">${unread}</b>` : ''}</button></div></header>`;
 }
 const tiles = (items, cls = '') => `<div class="tiles ${cls}" style="--n:${items.filter(Boolean).length}">${items.filter(Boolean).map(t => `<button class="tile" onclick="${t.fn}"><i>${ic(t.icon, 26, 1.7)}${t.badge ? `<b class="tbdg">${t.badge}</b>` : ''}</i><span>${t.label}</span>${t.sub ? `<small>${t.sub}</small>` : ''}</button>`).join('')}</div>`;
@@ -606,7 +608,7 @@ function renderJoin() {
   if (joinDone) return `<div class="join"><div class="done"><div class="done-ic">${ic('check', 34, 3)}</div><h3>ส่งคำขอแล้ว</h3>
     <p class="hint">ตัวแทนของ ${esc(c.name)} จะยืนยันว่าคุณเป็นพนักงานจริง<br>เมื่อยืนยันแล้วให้เข้าสู่ระบบด้วยอีเมลและรหัสที่ตั้งไว้</p></div>
     <div class="row center"><button class="btn link" onclick="leaveJoin()">กลับหน้าเข้าสู่ระบบ</button></div></div>`;
-  return `<div class="join"><div class="row end" style="margin:0 0 6px">${toolBtns()}</div><img class="ph-logo" src="img/logo.png" alt="Guru IT Solution" width="96" height="28">
+  return `<div class="join"><div class="row end" style="margin:0 0 6px">${toolBtns()}</div>${wordmark()}
     <h1>สมัครใช้งาน</h1><p class="hint" style="margin:2px 0 0">${esc(c.name)}</p>
     <button type="button" class="join-photo" onclick="$('joinFile').click()"><i>${joinDraft.photo && PHOTOS[joinDraft.photo] ? `<img src="${PHOTOS[joinDraft.photo]}" alt="รูปของคุณ">` : ic('camera', 28, 1.7)}</i>${joinDraft.photo ? 'เปลี่ยนรูป' : 'รูปของคุณ (ไม่บังคับ)'}</button>
     <input type="file" id="joinFile" accept="image/*" hidden onchange="joinPhoto(this)">
@@ -774,7 +776,7 @@ let login = { id: '', staff: false };
 function setLoginMode(staff) { login = { id: $('lgId')?.value || '', staff }; renderAll(); focusLater('lgId'); }
 function renderLogin() {
   const st = login.staff;
-  return `<div class="join"><div class="row end" style="margin:0 0 6px">${toolBtns()}</div><img class="ph-logo" src="img/logo.png" alt="Guru IT Solution" width="96" height="28">
+  return `<div class="join"><div class="row end" style="margin:0 0 6px">${toolBtns()}</div>${wordmark()}
     <h1>${st ? 'เข้าสู่ระบบเจ้าหน้าที่' : 'เข้าสู่ระบบ'}</h1><p class="hint" style="margin:2px 0 0">${st ? 'สำหรับช่าง หัวหน้าทีม และผู้ดูแลระบบ' : 'Guru IT Service Desk · สำหรับลูกค้า'}</p>
       <label class="fl">อีเมลที่ลงทะเบียน<input id="lgId" type="email" inputmode="email" autocomplete="username" maxlength="100" placeholder="name@company.com" value="${esc(login.id)}" onkeydown="if(event.key==='Enter')$('lgPw').focus()"></label>
       <label class="fl">รหัสผ่าน<input id="lgPw" type="password" autocomplete="current-password" maxlength="200" onkeydown="if(event.key==='Enter')doLogin()"></label>
@@ -786,6 +788,7 @@ function renderLogin() {
     `}
 
     <button class="btn link block" style="margin-top:22px" onclick="setLoginMode(${!st})">${st ? `${ic('user', 16, 2)}กลับไปเข้าสู่ระบบลูกค้า` : `${ic('tool', 16, 2)}เข้าสู่ระบบสำหรับช่าง / เจ้าหน้าที่`}</button>
+    <div class="foot-brand">${footLogo}</div>
   </div>`;
 }
 async function doLogin() {
@@ -1008,7 +1011,7 @@ function renderMe() {
     ${row('chart', 'รายงานผลงาน', "rpt.view='summary';goTab('reports')")}
     ${row('shield', 'บันทึกตรวจสอบ', "rpt.view='audit';goTab('reports')")}</div>` : ''}
   <div class="sgroup"><h4>บัญชี</h4>${row('lock', 'เปลี่ยนรหัสผ่าน', 'openPassword()')}${row('logout', 'ออกจากระบบ', 'logout()')}</div>
-  <p class="about"><img src="img/icon-192.png" alt="" width="28" height="28">Guru IT Service Desk</p>`;
+  <p class="about">${footLogo}</p>`;
 }
 
 /* แก้ข้อมูลของตัวเอง (ทุกบทบาท) — เปลี่ยนอีเมลต้องยืนยันรหัสปัจจุบัน */
