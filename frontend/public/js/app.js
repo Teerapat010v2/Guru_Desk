@@ -416,7 +416,8 @@ function ticketIcon(tk) {
 
 function custProgress(tk) {
   const st = CUST_STAGE[tk.status];
-  return `<div class="cprog">${CUST_STEPS.map((s, i) => `<div class="cp ${i < st || (i === st && tk.status === 'closed') ? 'done' : i === st ? 'now' : ''}"><i></i><span>${s}</span></div>`).join('')}</div>`;
+  return `<div class="stepper" role="list">${CUST_STEPS.map((s, i) => { const done = i < st || (i === st && tk.status === 'closed'), now = i === st && !done;
+    return `<div class="stp ${done ? 'done' : now ? 'now' : ''}" role="listitem" ${now ? 'aria-current="step"' : ''}><b>${now ? '<u></u>' : ic('check', 14, 3)}</b><span>${s}</span></div>`; }).join('')}</div>`;
 }
 
 /* รายการงาน: แบบเต็ม (การ์ด) หรือแบบย่อ (แถวเดียว) */
@@ -1215,7 +1216,7 @@ function ticketSheet(id) {
     const cs = custStatus(tk);
     const status = `<div class="card status-card st-${tk.status}">
       <div class="st-row"><div class="st-ic">${ic(cs.icon, 22, 1.9)}</div><div class="st-t"><b>${esc(cs.t)}</b><small>${esc(cs.d)}</small></div>
-        ${tk.assignee ? `<small class="st-who" title="ช่างผู้ดูแลงาน">${esc(nameOf(tk.assignee))}</small>` : ''}</div>
+        <div class="st-r"><span class="spill">${ic('clock', 14, 2)}${STATUS_LABEL[tk.status]}</span>${tk.assignee ? `<small class="st-who" title="ช่างผู้ดูแลงาน">${esc(nameOf(tk.assignee))}</small>` : ''}</div></div>
       ${custProgress(tk)}
     </div>`;
     const details = (`<div class="card"><h3 class="tk-title">${esc(tk.subject)}</h3>
