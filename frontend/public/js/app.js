@@ -239,7 +239,7 @@ function renderThumbs(key) {
 }
 const photoBtn = (key, label) => `<button type="button" class="tool-btn" onclick="$('file-${key}').click()" aria-label="แนบรูป">${ic('camera', 20, 2)}${label ? `<span>${label}<b id="pcount-${key}">${pending[key].length ? ` ${pending[key].length}/${MAX_PHOTOS}` : ''}</b></span>` : ''}</button>
   <input type="file" id="file-${key}" accept="image/*" multiple hidden onchange="addPhotos('${key}',this)">`;
-const gallery = ids => ids?.length ? `<div class="gallery">${ids.filter(id => PHOTOS[id]).map(id => `<button type="button" class="gimg" onclick="openLightbox('${id}')" aria-label="ดูรูปขนาดใหญ่"><img src="${PHOTOS[id]}" alt="" loading="lazy"></button>`).join('')}</div>` : '';
+const gallery = (ids, big) => ids?.length ? `<div class="gallery${big ? " big" : ""}">${ids.filter(id => PHOTOS[id]).map(id => `<button type="button" class="gimg" onclick="openLightbox('${id}')" aria-label="ดูรูปขนาดใหญ่"><img src="${PHOTOS[id]}" alt="" loading="lazy"></button>`).join('')}</div>` : '';
 function openLightbox(id) { $('lbImg').src = PHOTOS[id]; $('lightbox').classList.add('open'); syncHistory(); }
 function closeLightbox() { $('lightbox').classList.remove('open'); syncHistory(); }
 
@@ -1152,7 +1152,7 @@ function ticketSheet(id) {
     </div>`;
     const details = (`<div class="card"><h3 class="tk-title">${esc(tk.subject)}</h3>
       <dl class="facts"><dt>สถานที่</dt><dd>${esc(siteLabel(tk))}</dd><dt>แจ้งเมื่อ</dt><dd>${fmt(tk.history[0].at)}</dd></dl>
-      ${gallery(tk.photos)}</div>`);
+      ${gallery(tk.photos, true)}</div>`);
     return [tk.id, status + reportCard(tk) + ratingCard(tk) + tabsHtml([{ k: 'chat', l: 'แชท', n: seen.length, body: convo }, { k: 'info', l: 'รายละเอียด', n: tk.photos?.length || null, body: details }])];
   }
 
@@ -1168,7 +1168,7 @@ function ticketSheet(id) {
   </div>`;
   const where = (`<div class="card">${siteBox(tk, true)}
     <dl class="facts" style="margin-top:12px"><dt>แจ้งเมื่อ</dt><dd>${fmt(tk.history[0].at)} โดย ${esc(nameOf(tk.history[0].by))}</dd><dt>ประเภท</dt><dd>${cat.label}</dd><dt>ความสำคัญ</dt><dd>${PRIORITY_LABEL[tk.priority]}</dd></dl>
-    ${gallery(tk.photos)}</div>`);
+    ${gallery(tk.photos, true)}</div>`);
   const worklog = canSeeWorklog(u) ? (`<div class="card">
     ${tk.worklogs.map(w => `<div class="cmt"><div class="meta">${esc(nameOf(w.by))} · ${fmt(w.at)}</div>${esc(w.text)}${gallery(w.photos)}</div>`).join('') || '<div class="hint">ยังไม่มีบันทึกการทำงาน</div>'}
     ${canAddWorklog(u, tk) ? `<div class="cbox" style="margin-top:10px"><textarea id="newWl" rows="2" placeholder="ทำอะไรไป ใช้เวลาเท่าไร… (แนบรูปหลักฐานได้)" aria-label="บันทึกการทำงาน"></textarea><button class="btn primary send" onclick="addWorklog('${tk.id}')" aria-label="บันทึก">${ic('plus', 18, 2.4)}</button></div>

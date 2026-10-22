@@ -1009,3 +1009,10 @@ textarea,input,select{border-radius:14px}
 /* ปุ่มดำเนินการสี่เหลี่ยม: ขนาดสเกลตามความกว้างจอ (58–84px) และเรียงเต็มแถวก่อนขึ้นแถวใหม่ */
 .card>.row.sq{display:grid;grid-template-columns:repeat(auto-fill,clamp(58px,17vw,84px));gap:8px;justify-content:start}
 .card>.row.sq .sqb{width:100%;height:auto;aspect-ratio:1/1;padding:4px 2px}
+
+/* รูปในแชท = ภาพเล็ก · รูปในแท็บรายละเอียด = ภาพใหญ่เต็มความกว้าง (แตะดูเต็มจอได้ทั้งคู่) */
+.bubble .gallery{grid-template-columns:repeat(auto-fill,56px);gap:4px}
+.bubble .gimg{border-radius:8px}
+.gallery.big{grid-template-columns:1fr;gap:10px}
+.gallery.big .gimg{aspect-ratio:4/3;border-radius:14px}
+@media (min-width:960px){.gallery.big{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}}
