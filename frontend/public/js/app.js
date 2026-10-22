@@ -1244,7 +1244,7 @@ const maBox = tk => !isMA(tk) ? null : {
 const maReport = c => `<h2>เช็กลิสต์ MA</h2>
   <table class="p-grid"><tr><th>อุปกรณ์</th><th>ตรวจแล้ว</th><th colspan="2">หมายเหตุ</th></tr>
   ${c.hw.map(x => `<tr><td>${esc(x.item)}</td><td class="c">${x.ok ? '✓' : '–'}</td><td colspan="2">${esc(x.note || '')}</td></tr>`).join('')}</table>
-  ${c.pc?.length ? `<table class="p-grid"><tr><th>เครื่องผู้ใช้</th><th>ดิสก์</th><th>Windows Update</th><th>ไวรัส</th></tr>${c.pc.map(x => `<tr><td>${esc(x.name)}</td><td class="c">${x.disk ? '✓' : '–'}</td><td class="c">${x.win ? '✓' : '–'}</td><td class="c">${x.virus ? '✓' : '–'}</td></tr>`).join('')}</table>` : ''}
+  ${c.pc?.length ? `<table class="p-grid p-newpage"><tr><th>เครื่องผู้ใช้</th><th>ดิสก์</th><th>Windows Update</th><th>ไวรัส</th></tr>${c.pc.map(x => `<tr><td>${esc(x.name)}</td><td class="c">${x.disk ? '✓' : '–'}</td><td class="c">${x.win ? '✓' : '–'}</td><td class="c">${x.virus ? '✓' : '–'}</td></tr>`).join('')}</table>` : ''}
   ${c.notes ? `<p class="p-text">${esc(c.notes)}</p>` : ''}`;
 function openResolve(id) {
   const tk = tickets.find(x => x.id === id), u = currentUser;

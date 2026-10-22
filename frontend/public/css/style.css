@@ -1063,3 +1063,7 @@ textarea,input,select{border-radius:14px}
 /* ป้ายประเภทงาน: MA น้ำเงินเข้ม ตัวขาว · แจ้งเหตุเทาปกติ */
 .tag.ma{background:var(--primary);color:#fff;font-weight:600}
 @media (max-width:959px){ .tchips[aria-label="ประเภทงาน"]{grid-template-columns:repeat(3,minmax(0,1fr))} .tchips[aria-label="ประเภทงาน"] button svg{display:none} }
+
+/* ใบรายงานพิมพ์: ตารางเครื่องผู้ใช้เริ่มหน้าใหม่ และแถวไม่ถูกตัดกลางแถว */
+.p-newpage{break-before:page}
+.paper tr{break-inside:avoid}
