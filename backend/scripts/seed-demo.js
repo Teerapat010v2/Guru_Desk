@@ -3,15 +3,19 @@
 //   node --env-file=.env scripts/seed-demo.js --clear   # ลบข้อมูลตัวอย่างทั้งหมดที่สคริปต์นี้เคยสร้าง
 // ใช้กับบัญชีทดสอบ demo-*@example.test ที่มีอยู่ · รายการที่สร้างถูกจดไว้ใน audit_log (action = 'seed-demo') เพื่อใช้ลบทีหลัง
 // ก่อนใช้งานจริงต้องรัน --clear (และลบ/เปลี่ยนรหัสบัญชีทดสอบ)
+import { readFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import pg from 'pg';
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const DAY = 86400000, ago = (d, h = 9) => { const t = new Date(Date.now() - d * DAY); t.setHours(h, 0, 0, 0); return t; };
+// รูปตัวอย่างเดียวใช้ทุกช่องที่แนบรูปได้ (รูปงาน ความเห็น work log ใบรายงาน รูปโปรไฟล์ คำขอสมัคร)
+const IMG = 'data:image/jpeg;base64,' + readFileSync(new URL('./seed-photo.jpg', import.meta.url)).toString('base64');
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
 async function clear(c) {
   const { rows } = await c.query("select detail from audit_log where action = 'seed-demo'");
-  const S = { tickets: [], customers: [], projects: [] };
+  const S = { tickets: [], customers: [], projects: [], photos: [], joins: [] };
   for (const r of rows) { try { const d = JSON.parse(r.detail); for (const k of Object.keys(S)) S[k].push(...(d[k] ?? [])); } catch { /* ข้ามแถวที่อ่านไม่ได้ */ } }
   const T = S.tickets;
   await c.query('delete from notifications where id like $1 or ticket_id = any($2)', ['NSEED%', T]);
@@ -21,6 +25,8 @@ async function clear(c) {
   await c.query('delete from projects where id = any($1)', [S.projects]);
   await c.query('delete from sites where customer_id = any($1)', [S.customers]);
   await c.query('delete from customers where id = any($1)', [S.customers]);
+  await c.query('delete from join_requests where id = any($1)', [S.joins]);
+  await c.query('delete from photos where id = any($1)', [S.photos]);
   return T.length;
 }
 
@@ -38,7 +44,14 @@ try {
   if (!tech || !lead || !emp) throw new Error('ไม่พบบัญชีทดสอบ demo-*@example.test (ช่าง/หัวหน้าทีม/ลูกค้า)');
 
   // บริษัทและสถานที่ตัวอย่าง
-  const made = { tickets: [], customers: ['CSEED1', 'CSEED2'], projects: ['PSEED1', 'PSEED2'] };
+  const made = { tickets: [], customers: ['CSEED1', 'CSEED2'], projects: ['PSEED1', 'PSEED2'], photos: [], joins: [] };
+  const ph = async (owner, kind) => { const pid = `${owner}:${kind}:${randomBytes(6).toString('hex')}`; await c.query('insert into photos (id, data) values ($1, $2)', [pid, IMG]); made.photos.push(pid); return pid; };
+  // รูปโปรไฟล์ของบัญชีทดสอบ (เฉพาะคนที่ยังไม่มีรูป)
+  for (const x of [tech, lead, admin, emp].filter(Boolean)) if (!(await c.query("select 1 from photos where id like $1", [`${x.id}:u:%`])).rowCount) await ph(x.id, 'u');
+  // คำขอสมัครที่รอตัวแทนบริษัทยอมรับ (มีรูป)
+  const jp = await ph('JSEED1', 'j');
+  await c.query("insert into join_requests (id, customer_id, site_id, name, email, phone, photo_id) values ('JSEED1', $1, $2, 'พนักงานใหม่ (ตัวอย่าง)', 'seed-join@example.test', '0812345678', $3)", [emp.customer_id, emp.site_id, jp]);
+  made.joins.push('JSEED1');
   await c.query("insert into customers (id, name, contract, contact, phone, email) values ('CSEED1', 'บริษัท สยามเทค จำกัด (ตัวอย่าง)', 'ma', 'คุณวิชัย', '022223333', 'seed1@example.test'), ('CSEED2', 'หจก. การค้าไทย (ตัวอย่าง)', 'oncall', 'คุณสมชาย', '021112222', 'seed2@example.test')");
   await c.query(`insert into sites (id, customer_id, name, address, contact, phone, lat, lng) values
     ('SSEED1', 'CSEED1', 'สำนักงานสีลม', '99 ถนนสีลม บางรัก กรุงเทพฯ', 'คุณวิชัย', '022223333', 13.7248, 100.5326),
@@ -73,6 +86,7 @@ try {
       [id, type, loc.c, loc.s, subject, category, priority, status, assignee?.id ?? null, created,
         ...(hasPlan ? [plan ? new Date(Date.now() + plan[0] * DAY).toLocaleDateString('sv') : null, plan?.[1] ?? null, plan?.[2] ?? null] : []), ...(hasMode ? [mode] : [])]);
     made.tickets.push(id);
+    await ph(id, 't');
     const steps = ['new', 'assigned', 'in_progress', 'resolved', 'closed'], upto = status === 'pending' ? 2 : steps.indexOf(status);
     let prev = null;
     for (let i = 0; i <= Math.max(upto, 0); i++) {
@@ -81,13 +95,18 @@ try {
       prev = to;
     }
     if (status === 'pending') await c.query("insert into ticket_history (ticket_id, from_status, to_status, by_user, reason, at) values ($1,'in_progress','pending',$2,'รออะไหล่จากลูกค้า',$3)", [id, tech.id, new Date(created.getTime() + 5 * 3600000)]);
-    await c.query("insert into comments (ticket_id, by_user, vis, text, at) values ($1,$2,'public',$3,$4)", [id, emp.id, `แจ้งปัญหา: ${subject}`, created]);
-    if (assignee) await c.query("insert into comments (ticket_id, by_user, vis, text, at) values ($1,$2,'public','รับเรื่องแล้วครับ จะเข้าตรวจสอบตามนัด',$3)", [id, tech.id, new Date(created.getTime() + 2 * 3600000)]);
-    if (['in_progress', 'pending', 'resolved', 'closed'].includes(status)) await c.query("insert into worklogs (ticket_id, by_user, text, at) values ($1,$2,'ตรวจสอบหน้างาน ดำเนินการแก้ไขตามขั้นตอน ทดสอบการใช้งานปกติ',$3)", [id, tech.id, new Date(created.getTime() + 4 * 3600000)]);
+    const { rows: [c1] } = await c.query("insert into comments (ticket_id, by_user, vis, text, at) values ($1,$2,'public',$3,$4) returning id", [id, emp.id, `แจ้งปัญหา: ${subject}`, created]);
+    await ph(id, `c${c1.id}`);
+    if (assignee) { const { rows: [c2] } = await c.query("insert into comments (ticket_id, by_user, vis, text, at) values ($1,$2,'public','รับเรื่องแล้วครับ จะเข้าตรวจสอบตามนัด',$3) returning id", [id, tech.id, new Date(created.getTime() + 2 * 3600000)]); await ph(id, `c${c2.id}`); }
+    if (['in_progress', 'pending', 'resolved', 'closed'].includes(status)) {
+      const { rows: [w] } = await c.query("insert into worklogs (ticket_id, by_user, text, at) values ($1,$2,'ตรวจสอบหน้างาน ดำเนินการแก้ไขตามขั้นตอน ทดสอบการใช้งานปกติ',$3) returning id", [id, tech.id, new Date(created.getTime() + 4 * 3600000)]);
+      await c.query('update worklogs set photo_ids = $2 where id = $1', [w.id, [await ph(id, `w${w.id}`)]]);
+    }
     if (rep) {
       const at = new Date(created.getTime() + 6 * 3600000);
       const { rows: [{ no }] } = await c.query("select 'SR-' || extract(year from now())::int || '-' || lpad(nextval('report_seq')::text, 4, '0') as no");
       await c.query('insert into reports (ticket_id, no, summary, parts, hours, by_user, at) values ($1,$2,$3,$4,$5,$6,$7)', [id, no, 'ตรวจสอบและแก้ไขเรียบร้อย ทดสอบใช้งานปกติแล้ว', '', rep.h, tech.id, at]);
+      await ph(id, 'r');
       if (rep.sign) await c.query('insert into signoffs (ticket_id, name, position, via, by_user, signature, at) values ($1,$2,$3,$4,$5,$6,$7)', [id, 'คุณวิชัย', 'ผู้จัดการ', rep.sign, rep.sign === 'app' ? emp.id : tech.id, PNG, new Date(at.getTime() + 3600000)]);
       if (rep.score) await c.query('insert into ratings (ticket_id, score, comment, by_user, via, at) values ($1,$2,$3,$4,$5,$6)', [id, rep.score, rep.score === 5 ? 'รวดเร็วมาก' : '', emp.id, 'app', new Date(at.getTime() + 7200000)]);
     }
