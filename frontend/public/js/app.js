@@ -532,7 +532,7 @@ function homeLead(u) {
       { icon: 'pin', label: 'ติดตามช่าง', fn: "goTab('mission')" },
       { icon: 'building', label: 'พาร์ทเนอร์', sub: `${allSites().length} สถานที่`, fn: "goTab('partners')" },
       { icon: 'chart', label: 'ผลงาน 7 วัน', sub: `${done7.length} งาน${avg ? ` · ★ ${num(avg)}` : ''}`, fn: "rpt.period='7';rpt.view='summary';goTab('reports')" }])
-  + workSection(u) + '</div><div class="hm-side">'
+  + '</div><div class="hm-side">'
   + (() => { const pl = tickets.filter(t => t.plan && isOpen(t)).sort((a, b) => (a.plan.date + a.plan.from) < (b.plan.date + b.plan.from) ? -1 : 1);
     const days = [...new Set(pl.map(t => t.plan.date))];
     return fold('l-plan', 'ปฏิทินงาน', pl.length ? days.map(d => `<div class="cal-day"><b>${new Date(d + 'T00:00').toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' })}</b>${pl.filter(t => t.plan.date === d).map(t => `<button class="trow" onclick="openTicket('${t.id}')"><div class="tr-m"><b>${t.plan.from}–${t.plan.to} · ${esc(t.subject)}</b><small>${esc(custName(t.customer))} · ${esc(t.assignee ? nameOf(t.assignee) : 'ยังไม่มอบหมาย')}</small></div>${ic('right', 16, 2)}</button>`).join('')}</div>`).join('') : empty('ยังไม่มีนัดหมาย ตั้งวันและเวลาได้ในหน้ารายละเอียดงาน', 'clock'), { count: pl.length, open: pl.length > 0 }); })()
