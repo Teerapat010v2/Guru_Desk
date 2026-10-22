@@ -69,6 +69,11 @@ async function savePhotos(q, owner, kind, list) {
 }
 
 // การแจ้งเตือน: server สร้างเองตามการกระทำ (ผู้ใช้ส่งแจ้งเตือนหาคนอื่นตรง ๆ ไม่ได้) · ข้ามบัญชีที่ปิดแล้ว
+/* ชื่อเล่นเขียนแยกจากข้อมูลหลัก: ยังไม่รัน migration 006 ก็บันทึกอย่างอื่นได้ (คืน false เมื่อมีชื่อเล่นแต่ยังไม่มีคอลัมน์) */
+async function setNick(id, nick) {
+  try { await pool.query('update users set nickname = $2 where id = $1', [id, nick || null]); return true; }
+  catch (err) { if (err.code === '42703') return !nick; throw err; }
+}
 async function notify(q, toIds, title, body, ticketId = null, go = null) {
   const to = [...new Set(toIds.filter(Boolean))];
   if (!to.length) return;
@@ -287,7 +292,7 @@ http.createServer(async (req, res) => {
                            rt.score, rt.comment as r_comment, rt.by_user as r_by, rt.via as r_via, rt.at as r_at
                     from reports r left join signoffs s on s.ticket_id = r.ticket_id left join ratings rt on rt.ticket_id = r.ticket_id
                     where r.ticket_id = any($1)`, [ids]),
-        pool.query('select id, name, role, team, phone, email, customer_id, site_id, approver, skills, removed from users order by name'),
+        pool.query('select id, name, role, team, phone, email, customer_id, site_id, approver, skills, removed, to_jsonb(users)->>\'nickname\' as nickname from users order by name'),
         pool.query('select id, name, contract, contact, phone, email from customers order by name'),
         pool.query('select id, customer_id, name, address, contact, phone, lat, lng from sites order by id'),
       ]);
@@ -332,8 +337,8 @@ http.createServer(async (req, res) => {
         const full = isManager(me) || (me.role === 'technician' && u.role !== 'customer') || (me.role === 'customer' && u.customer_id === me.customer_id);
         if (!full && u.role === 'customer' && !seeCust.has(u.customer_id)) continue;
         users[u.id] = full
-          ? { id: u.id, name: u.name, role: u.role, team: u.team, phone: u.phone ?? '', email: u.email ?? '', customer: u.customer_id, siteId: u.site_id, approver: u.approver, skills: u.skills, removed: u.removed }
-          : { id: u.id, name: u.name, role: u.role, team: u.team, customer: u.customer_id, skills: [], removed: u.removed };
+          ? { id: u.id, name: u.name, role: u.role, team: u.team, phone: u.phone ?? '', email: u.email ?? '', customer: u.customer_id, siteId: u.site_id, approver: u.approver, nick: u.nickname ?? '', skills: u.skills, removed: u.removed }
+          : { id: u.id, name: u.name, role: u.role, team: u.team, customer: u.customer_id, nick: u.nickname ?? '', skills: [], removed: u.removed };
         users[u.id].photo = P[`${u.id}:u`]?.at(-1) ?? null;
       }
       // โปรเจกต์: หัวหน้าทีม/ผู้ดูแลเห็นทั้งหมด · ช่างเห็นที่ตัวเองรับผิดชอบ · ลูกค้าเห็นของบริษัทตัวเอง (กฎเดียวกับ canSeeProject)
@@ -685,7 +690,7 @@ http.createServer(async (req, res) => {
       const me = await currentUser(req);
       if (!me) return send(res, 401, { error: 'not_signed_in' });
       const b = await readJson(req, PHOTO_BODY);
-      const name = String(b.name ?? '').trim(), email = String(b.email ?? '').trim().toLowerCase();
+      const name = String(b.name ?? '').trim(), email = String(b.email ?? '').trim().toLowerCase(), nick = String(b.nick ?? '').trim().slice(0, 20);
       const phone = String(b.phone ?? '').replace(/[\s-]/g, ''), current = String(b.currentPassword ?? ''), next = String(b.newPassword ?? '');
       const photos = parsePhotos(b.photo ? [b.photo] : [], 1);
       if (photos === null) return send(res, 400, { error: 'invalid_photo' });
@@ -715,6 +720,7 @@ http.createServer(async (req, res) => {
         if (err.code === '23505') return send(res, 409, { error: 'email_taken' });
         throw err;
       }
+      if (b.nick !== undefined && !(await setNick(me.id, nick))) return send(res, 503, { error: 'migration_needed' });
       return send(res, 200, { ok: true });
     }
     // บัญชีผู้ใช้: POST /api/users = เพิ่ม · POST /api/users/:id = แก้ไข/ปิดบัญชี
@@ -728,7 +734,7 @@ http.createServer(async (req, res) => {
       if (me.role !== 'admin' && !canManageTeam(me) && !rep) return send(res, 403, { error: 'forbidden' });
       const id = userUrl[1];
       const b = await readJson(req, PHOTO_BODY);
-      const name = String(b.name ?? '').trim();
+      const name = String(b.name ?? '').trim(), nick = String(b.nick ?? '').trim().slice(0, 20);
       const email = String(b.email ?? '').trim().toLowerCase();
       const role = String(b.role ?? '');
       const password = String(b.password ?? '');
@@ -755,6 +761,7 @@ http.createServer(async (req, res) => {
       // กันผู้ดูแลล็อกตัวเองออก — จึงมีผู้ดูแลเหลืออย่างน้อย 1 คนเสมอ
       if (id === me.id && (role !== me.role || removed)) return send(res, 400, { error: 'self_lockout' });
       try {
+        let savedId = id;
         const saved = await inTx(async c => {
           if (siteId && !(await c.query('select 1 from sites where id = $1 and customer_id = $2', [siteId, customerId])).rowCount) return 'invalid_site';
           if (id && rep) {
@@ -781,6 +788,7 @@ http.createServer(async (req, res) => {
                            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
               [uid = `u${randomBytes(4).toString('hex')}`, name, email, role, team, customerId, siteId, approver, phone || null, skills, hash]);
           }
+          savedId = uid;
           if (photos.length) {
             await c.query('delete from photos where id like $1', [`${uid}:u:%`]);
             await savePhotos(c, uid, 'u', photos);
@@ -788,6 +796,7 @@ http.createServer(async (req, res) => {
           await audit(c, me, id ? (removed ? 'ปิดบัญชี' : 'แก้ไขบัญชี') : 'เพิ่มบัญชี', `${email} (${role})${hash && id ? ' ตั้งรหัสใหม่' : ''}`);
           return 'ok';
         });
+        if (saved === 'ok' && b.nick !== undefined && !(await setNick(savedId, nick))) return send(res, 503, { error: 'migration_needed' });
         const code = { ok: 200, not_found: 404, forbidden: 403 }[saved] ?? 400;
         return send(res, code, saved === 'ok' ? { ok: true } : { error: saved });
       } catch (err) {

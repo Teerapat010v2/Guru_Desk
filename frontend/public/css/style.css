@@ -1148,3 +1148,8 @@ textarea,input,select{border-radius:14px}
 .tcard .tc-f .btn{flex:none;overflow:visible}
 .tcard>.btn.block-sm{margin-top:8px}
 .tcard .tc-f .pill{flex:none;overflow:visible}
+
+/* หัวหน้าเพจ: ถ้าปุ่มขวามากจนหัวข้อเหลือแคบกว่า 9rem ให้ปุ่มลงแถวใหม่ (ชิดขวา) แทนการบีบหัวข้อจนตัวอักษรตกบรรทัดละตัว */
+.phead{flex-wrap:wrap}
+.ph-t{flex:1 1 9rem}
+.ph-a{margin-left:auto}

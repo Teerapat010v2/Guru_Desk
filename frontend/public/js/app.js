@@ -14,6 +14,7 @@ function ago(d) {
   return fmtD(d);
 }
 const nameOf = id => users[id]?.name || (id === 'system' ? 'ระบบ' : id);
+const shortOf = id => users[id]?.nick || nameOf(id);   // ที่แคบ (การ์ด ปฏิทิน) ใช้ชื่อเล่นแทนชื่อเต็มที่ยาว
 const mapUrl = addr => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
 const num = n => (+n || 0).toLocaleString(loc(), { maximumFractionDigits: 1 });
 const hrs = n => `${num(n)} ชม.`;
@@ -443,7 +444,7 @@ function ticketCard(tk, opts = {}) {
     <div class="tc-h">${ticketIcon(tk)}<div class="tc-t"><b>${esc(tk.subject)}</b><small>${tk.id} · ${esc(custName(tk.customer))}</small></div>
       ${['urgent', 'high'].includes(tk.priority) ? `<span class="prio prio-${tk.priority}">${PRIORITY_LABEL[tk.priority]}</span>` : ''}</div>
     <div class="tc-f">${complaintTag(tk)}<span class="pill p-${tk.status}">${STATUS_LABEL[tk.status]}</span>
-      ${isManager(u) ? `<span class="tag ${tk.assignee ? '' : 'warn'}">${ic('user', 13, 2)}${tk.assignee ? esc(nameOf(tk.assignee)) : 'ยังไม่มอบหมาย'}</span>` : `<span class="tag">${esc(siteOf(tk)?.name || '-')}</span>`}
+      ${isManager(u) ? `<span class="tag ${tk.assignee ? '' : 'warn'}">${ic('user', 13, 2)}${tk.assignee ? esc(shortOf(tk.assignee)) : 'ยังไม่มอบหมาย'}</span>` : `<span class="tag">${esc(siteOf(tk)?.name || '-')}</span>`}
       ${tk.plan ? `<span class="tag">${ic('clock', 13, 2)}${tk.plan.date.slice(5)} ${tk.plan.from}–${tk.plan.to}</span>` : ''}${tk.mode === 'remote' ? `<span class="tag">${ic('globe', 13, 2)}รีโมท</span>` : ''}
       ${tk.rating ? starsHtml(tk.rating.score, 12) : ''}<span class="sp"></span>${qbtn}</div>
   </div>`;
@@ -549,7 +550,7 @@ function homeLead(u) {
   + '</div><div class="hm-side">'
   + (() => { const pl = tickets.filter(t => t.plan && isOpen(t)).sort((a, b) => (a.plan.date + a.plan.from) < (b.plan.date + b.plan.from) ? -1 : 1);
     const days = [...new Set(pl.map(t => t.plan.date))];
-    return fold('l-plan', 'ปฏิทินงาน', pl.length ? days.map(d => `<div class="cal-day"><b>${new Date(d + 'T00:00').toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' })}</b>${pl.filter(t => t.plan.date === d).map(t => `<button class="trow" onclick="openTicket('${t.id}')"><div class="tr-m"><b>${t.plan.from}–${t.plan.to} · ${esc(t.subject)}</b><small>${esc(custName(t.customer))} · ${esc(t.assignee ? nameOf(t.assignee) : 'ยังไม่มอบหมาย')}</small></div>${ic('right', 16, 2)}</button>`).join('')}</div>`).join('') : empty('ยังไม่มีนัดหมาย ตั้งวันและเวลาได้ในหน้ารายละเอียดงาน', 'clock'), { count: pl.length, open: true }); })()
+    return fold('l-plan', 'ปฏิทินงาน', pl.length ? days.map(d => `<div class="cal-day"><b>${new Date(d + 'T00:00').toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' })}</b>${pl.filter(t => t.plan.date === d).map(t => `<button class="trow" onclick="openTicket('${t.id}')"><div class="tr-m"><b>${t.plan.from}–${t.plan.to} · ${esc(t.subject)}</b><small>${esc(custName(t.customer))} · ${esc(t.assignee ? shortOf(t.assignee) : 'ยังไม่มอบหมาย')}</small></div>${ic('right', 16, 2)}</button>`).join('')}</div>`).join('') : empty('ยังไม่มีนัดหมาย ตั้งวันและเวลาได้ในหน้ารายละเอียดงาน', 'clock'), { count: pl.length, open: true }); })()
   + fold('l-load', 'ภาระงานของช่าง', `<div class="card">${techs.map(x => {
       const mine = tickets.filter(t => t.assignee === x.id && isOpen(t)), n = mine.length;
       return `<div class="load"><div class="lname"><b>${esc(x.name)}</b><small>${n} งานเปิด${mine.some(t => t.priority === 'urgent') ? ' · <em class="prio-urgent">มีงานด่วน</em>' : ''}</small></div>
@@ -924,7 +925,7 @@ function techSheet(id) {
 const pwField = (id, isNew) => `<label class="fl">${isNew ? 'รหัสผ่านเริ่มต้น <em>*</em>' : 'ตั้งรหัสผ่านใหม่'}<input id="${id}" type="password" autocomplete="new-password" maxlength="200" placeholder="${isNew ? 'อย่างน้อย 8 ตัว — แจ้งเจ้าของบัญชีเอง' : 'เว้นว่าง = ใช้รหัสเดิม'}"></label>`;
 const pwErr = (v, isNew) => (isNew || v) && v.length < 8 ? 'รหัสผ่านต้องยาวอย่างน้อย 8 ตัว' : '';
 // ข้อมูลบัญชีที่ส่งให้ server — ส่งครบทุกช่องเพราะ server บันทึกทั้งแถว
-const userBody = x => ({ name: x.name, email: x.email, role: x.role, phone: x.phone || '', team: x.team || '', skills: x.skills || [],
+const userBody = x => ({ name: x.name, email: x.email, role: x.role, phone: x.phone || '', team: x.team || '', skills: x.skills || [], nick: x.nick || '',
   customerId: x.customer || '', siteId: x.siteId || '', approver: !!x.approver, removed: !!x.removed });
 let techPhoto = null;
 async function techPhotoPick(input) {
@@ -939,6 +940,7 @@ function openTechForm(id) {
     <button type="button" class="join-photo" onclick="$('techFile').click()"><i id="techPh">${x?.photo && PHOTOS[x.photo] ? `<img src="${PHOTOS[x.photo]}" alt="">` : ic('camera', 28, 1.7)}</i>รูปโปรไฟล์</button>
     <input type="file" id="techFile" accept="image/*" hidden onchange="techPhotoPick(this)">
     <label class="fl">ชื่อ <em>*</em><input id="tName" maxlength="60" value="${esc(x?.name || '')}"></label>
+    <label class="fl">ชื่อเล่น (แสดงแทนชื่อเต็มในที่แคบ)<input id="tNick" maxlength="20" value="${esc(x?.nick || '')}"></label>
     ${emailField('tEmail', x?.email)}
     <label class="fl">เบอร์โทร <em>*</em><input id="tPhone" type="tel" inputmode="tel" maxlength="15" value="${esc(x?.phone || '')}"></label>
     ${pwField('tPw', !x)}
@@ -954,7 +956,7 @@ async function saveTech(id) {
   const err = !name ? 'กรุณากรอกชื่อ' : emailErr(email, id) || (!validPhone(phone) ? 'เบอร์โทรไม่ถูกต้อง' : phoneTaken(phone, id) ? 'เบอร์นี้มีในระบบแล้ว' : pwErr(pw, !id));
   if (err) { $('tErr').textContent = err; return; }
   const x = id ? users[id] : { role: 'technician', team: u.team || 'T1' };
-  if (!await call(id ? `/users/${id}` : '/users', { ...userBody({ ...x, name, email, phone, skills }), password: pw, photo: techPhoto ? PHOTOS[techPhoto] : undefined }, 'tErr')) return;
+  if (!await call(id ? `/users/${id}` : '/users', { ...userBody({ ...x, name, nick: $('tNick').value.trim(), email, phone, skills }), password: pw, photo: techPhoto ? PHOTOS[techPhoto] : undefined }, 'tErr')) return;
   closeModal(); toast(id ? 'บันทึกแล้ว' : `เพิ่ม ${name} แล้ว — เข้าสู่ระบบด้วย ${email}`); renderAll();
 }
 /* ลบ = ปิดบัญชี (เก็บประวัติงานเดิมไว้) และต้องย้ายงาน/โปรเจกต์ที่ค้างก่อน ไม่ให้งานลูกค้าหลุด */
@@ -1016,7 +1018,7 @@ const pct = p => p.tasks.length ? Math.round(p.tasks.filter(x => x.done).length 
 const projCard = p => `<div class="tcard" onclick="openProject('${p.id}')" role="button" tabindex="0">
   <div class="tc-h"><i class="tc-ic cat-${CATEGORIES[p.category] ? p.category : 'other'}">${ic(CATEGORIES[p.category]?.icon || 'folder', 22, 1.7)}</i><div class="tc-t"><b>${esc(p.name)}</b><small>${esc(custName(p.customer))} · ${esc(siteById(p.siteId)?.name || '-')}</small></div><b class="pct">${pct(p)}%</b></div>
   <div class="pbar" role="progressbar" aria-valuenow="${pct(p)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct(p)}%"></i></div>
-  <div class="tc-f"><span class="tag">${ic('user', 13, 2)}${esc(nameOf(p.owner))}</span><span class="tag ${p.due < new Date() && pct(p) < 100 ? 'warn' : ''}">${ic('clock', 13, 2)}กำหนด ${fmtD(p.due)}</span></div></div>`;
+  <div class="tc-f"><span class="tag">${ic('user', 13, 2)}${esc(shortOf(p.owner))}</span><span class="tag ${p.due < new Date() && pct(p) < 100 ? 'warn' : ''}">${ic('clock', 13, 2)}กำหนด ${fmtD(p.due)}</span></div></div>`;
 let pjFilter = 'active';
 function setPjFilter(k) { pjFilter = k; renderAll(); }
 function renderProjects() {
@@ -1118,6 +1120,7 @@ function openProfile() {
     <button type="button" class="join-photo" onclick="$('techFile').click()"><i id="techPh">${u.photo && PHOTOS[u.photo] ? `<img src="${PHOTOS[u.photo]}" alt="">` : ic('camera', 28, 1.7)}</i>เปลี่ยนรูปโปรไฟล์</button>
     <input type="file" id="techFile" accept="image/*" hidden onchange="techPhotoPick(this)">
     <label class="fl">ชื่อ-นามสกุล <em>*</em><input id="mName" maxlength="80" value="${esc(u.name)}"></label>
+    <label class="fl">ชื่อเล่น (แสดงแทนชื่อเต็มในที่แคบ)<input id="mNick" maxlength="20" value="${esc(u.nick || '')}"></label>
     <label class="fl">เบอร์โทร<input id="mPhone" type="tel" inputmode="tel" maxlength="15" placeholder="เช่น 081-234-5678" value="${esc(u.phone || '')}"></label>
     ${emailField('mEmail', u.email, `oninput="$('mCur').style.display = normEmail(this.value) === currentUser.email ? 'none' : ''"`)}
     <label class="fl" id="mCur" style="display:none">รหัสผ่านปัจจุบัน (ยืนยันการเปลี่ยนอีเมล) <em>*</em><input id="mCurPw" type="password" autocomplete="current-password" maxlength="200"></label>
@@ -1128,7 +1131,7 @@ async function saveProfile() {
   const u = currentUser, name = $('mName').value.trim(), phone = $('mPhone').value.replace(/[\s-]/g, ''), email = normEmail($('mEmail').value), cur = $('mCurPw').value;
   const err = !name ? 'กรุณากรอกชื่อ' : phone && !validPhone(phone) ? 'เบอร์โทรไม่ถูกต้อง (เช่น 0812345678)' : emailErr(email, u.id) || (email !== u.email && !cur ? 'ใส่รหัสผ่านปัจจุบันเพื่อเปลี่ยนอีเมล' : '');
   if (err) { $('mErr').textContent = err; return; }
-  if (!await call('/me', { name, phone, email, currentPassword: cur, photo: techPhoto ? PHOTOS[techPhoto] : undefined }, 'mErr')) return;
+  if (!await call('/me', { name, nick: $('mNick').value.trim(), phone, email, currentPassword: cur, photo: techPhoto ? PHOTOS[techPhoto] : undefined }, 'mErr')) return;
   closeModal(); toast('บันทึกแล้ว'); renderAll();
 }
 function openPassword() {

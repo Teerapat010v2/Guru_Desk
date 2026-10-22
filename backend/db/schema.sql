@@ -30,6 +30,7 @@ CREATE TABLE users (
   site_id     text REFERENCES sites(id),
   approver    boolean NOT NULL DEFAULT false,
   skills      text[] NOT NULL DEFAULT '{}',
+  nickname    text,
   removed     boolean NOT NULL DEFAULT false  -- ลบ = ปิดบัญชี เก็บประวัติไว้
 );
 
