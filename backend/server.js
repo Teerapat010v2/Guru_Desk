@@ -460,9 +460,11 @@ http.createServer(async (req, res) => {
         if (from >= to) return send(res, 400, { error: 'invalid_range' });
         await pool.query('update tickets set planned_on = $2, planned_from = $3, planned_to = $4 where id = $1', [id, date, from, to]);
         // ส่งนัดหมายให้ลูกค้าและช่างที่รับงาน — ส่งไม่ได้ก็ไม่ทำให้การวางแผนล้ม
-        const { rows: [m] } = await pool.query('select c.email as cust, u.email as tech, t.subject from tickets t join customers c on c.id = t.customer_id left join users u on u.id = t.assignee_id where t.id = $1', [id]);
-        const info = { subject: m?.subject, date, from, to };
-        Promise.all([sendScheduleMail(m?.cust, { ...info, role: 'customer' }), sendScheduleMail(m?.tech, { ...info, role: 'technician' })]).catch(err => console.error('mail:', err.message));
+        const { rows: [m] } = await pool.query(`select c.email as cust, u.email as tech, t.subject, c.name as customer, c.contract, s.address
+                                                from tickets t join customers c on c.id = t.customer_id left join sites s on s.id = t.site_id
+                                                left join users u on u.id = t.assignee_id where t.id = $1`, [id]);
+        const info = { ticketId: id, subject: m?.subject, customer: m?.customer, contract: m?.contract, address: m?.address, date, from, to };
+        Promise.all([sendScheduleMail(m?.cust, info), sendScheduleMail(m?.tech, info)]).catch(err => console.error('mail:', err.message));
         await audit(pool, me, `วางแผนงาน ${id}`, `${date} ${from}-${to}`);
         return send(res, 200, { ok: true });
       }
