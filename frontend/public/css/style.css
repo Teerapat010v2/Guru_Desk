@@ -728,3 +728,17 @@ textarea,input,select{border-radius:14px}
 .me-card small{font-size:.8125rem;color:var(--text-2);overflow-wrap:anywhere}
 .me-card .btn{margin-top:14px}
 .me-card+.sgroup{margin-top:14px}
+
+/* งานบนมือถือ: สถานะเป็นแถวเลื่อนแคปซูลเล็ก และการ์ดงานกะทัดรัดขึ้น */
+@media (max-width:959px){
+  .ttabs{display:flex;gap:6px;overflow-x:auto;padding:0 0 2px;margin-bottom:4px}
+  .ttabs button{flex:none;min-height:34px;padding:4px 12px;border-radius:999px;background:var(--card);font-size:0.8125rem;display:inline-flex;align-items:center;gap:4px}
+  .ttabs button.on{background:var(--primary-s);color:var(--primary);font-weight:600}
+  .ttabs button sup{margin:0;padding:0 5px;font-size:0.6875rem;background:var(--card-2);border-radius:999px;vertical-align:middle;line-height:1.6}
+  .tcard{padding:12px}
+  .tcard .tc-ic{width:34px;height:34px;border-radius:10px}
+  .tc-h{gap:10px}
+  .tc-t b{font-size:0.9375rem}
+  .tc-f{margin:8px 0 0 44px;gap:5px}
+  .tcard .btn.sm{min-height:34px;padding:4px 10px}
+}
