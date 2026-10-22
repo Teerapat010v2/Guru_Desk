@@ -801,3 +801,8 @@ textarea,input,select{border-radius:14px}
   .mcard small{font-size:0.7188rem}
   .card{padding:12px;border-radius:16px;margin-bottom:8px}
 }
+
+/* ทางลัด: เอากรอบนอกออก เหลือแค่กล่องไอคอนสี */
+.tile{background:none}
+.tile:hover{background:none}
+.tiles.compact .tile{padding:4px 2px;min-height:0}
