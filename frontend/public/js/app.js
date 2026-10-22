@@ -92,6 +92,7 @@ let homeTab = null;
 let jobType = 'service';   // ประเภทงานที่ทีมงานเลือกดู (บริการ / ร้องเรียน)
 let query = '', showSearch = false;
 let cmtVis = 'public';
+let tkTab = 'chat';   // แท็บที่เปิดอยู่ในหน้างาน: chat · info · wl · hist
 let cmtDraft = '';
 let gpsTimer = null;
 let rpt = { partner: 'all', period: '30', view: 'summary', dim: 'partner' };
@@ -820,6 +821,11 @@ function renderTeam() {
       <div class="tc-f tc-f-wide">${skillTags(x) || '<span class="hint">ยังไม่ระบุความถนัด</span>'}</div></div>`; }).join('')}</div>` : empty('ยังไม่มีช่าง — กด + เพิ่มช่าง', 'team'));
 }
 function openTech(id) { pushSheet({ t: 'tech', id }); }
+/* หน้าข้อมูลช่าง/พาร์ทเนอร์: ส่วนต่าง ๆ เป็นแท็บ (จำแท็บตามรหัส) */
+const subTab = {};
+const paneTabs = (key, panes) => { const list = panes.filter(Boolean), cur = list.find(p => p.k === subTab[key]) || list[0];
+  return `<div class="tbar tk-tabs">${textTabs(list.map(p => [p.k, p.l, p.n]), cur.k, 'setSubTab')}</div>${cur.body}`; };
+function setSubTab(k) { const id = sheetStack.at(-1)?.id; if (id) subTab[id] = k; renderSheet(); }
 function techSheet(id) {
   const x = users[id];
   if (!x || x.role !== 'technician' || x.removed || !canManageTeam(currentUser)) return [id, empty('ไม่พบข้อมูล', 'search')];
@@ -828,9 +834,7 @@ function techSheet(id) {
       ${x.phone ? `<a class="btn sm" href="tel:${esc(x.phone)}">${ic('phone', 15, 2)}${esc(x.phone)}</a>` : ''}</div>
     <div class="kpis in-sheet"><div class="kpi"><b>${s.open}</b><span>งานเปิด</span></div><div class="kpi"><b>${s.done}</b><span>งานเสร็จ</span></div>
       <div class="kpi"><b>${s.avg ? '★ ' + num(s.avg) : '–'}</b><span>คะแนน</span></div><div class="kpi"><b>${pj.length}</b><span>โปรเจกต์</span></div></div>
-    ${fold('t-skills', 'ความถนัด', `<div class="card"><div class="badges">${skillTags(x) || '<span class="hint">ยังไม่ระบุ</span>'}</div></div>`)}
-    ${fold('t-jobs', 'งานที่กำลังทำ', open.length ? list(open) : empty('ไม่มีงานค้าง'), { count: open.length })}
-    ${pj.length ? fold('t-projects', 'โปรเจกต์', `<div class="list">${pj.map(projCard).join('')}</div>`, { count: pj.length, open: false }) : ''}
+    ${paneTabs(id, [{ k: 'jobs', l: 'งานที่ทำ', n: open.length, body: open.length ? list(open) : empty('ไม่มีงานค้าง') }, pj.length && { k: 'pj', l: 'โปรเจกต์', n: pj.length, body: `<div class="list">${pj.map(projCard).join('')}</div>` }, { k: 'skill', l: 'ความถนัด', n: null, body: `<div class="card"><div class="badges">${skillTags(x) || '<span class="hint">ยังไม่ระบุ</span>'}</div></div>` }])}
     <div class="row"><button class="btn" onclick="openTechForm('${id}')">${ic('pen', 16, 2)}แก้ไข</button><button class="btn ghost-red" onclick="removeTech('${id}')">${ic('trash', 16, 2)}ลบช่าง</button></div>`];
 }
 /* รหัสผ่าน: บัญชีใหม่ต้องตั้งรหัสเริ่มต้น (แจ้งเจ้าของบัญชีเอง) · แก้ไขแล้วเว้นว่าง = ใช้รหัสเดิม */
@@ -1063,7 +1067,7 @@ function pushSheet(v) {
   syncHistory();
 }
 function openTicket(id) {
-  if (sheetStack.at(-1)?.id !== id) { cmtVis = 'public'; cmtDraft = ''; clearPending('cmt'); clearPending('wl'); }
+  if (sheetStack.at(-1)?.id !== id) { tkTab = 'chat'; cmtVis = 'public'; cmtDraft = ''; clearPending('cmt'); clearPending('wl'); }
   pushSheet({ t: 'ticket', id });
 }
 function openPartner(id) { pushSheet({ t: 'partner', id }); }
@@ -1132,9 +1136,12 @@ function ticketSheet(id) {
     return `<div class="bubble ${mine ? 'me' : ''} ${c.vis === 'internal' ? 'internal' : ''}">
       <div class="meta">${c.vis === 'internal' ? `${ic('lock', 12, 2.2)}บันทึกภายใน · ` : ''}${esc(nameOf(c.by))}${staff && cust ? ' (ทีมงาน)' : ''} · ${ago(c.at)}</div>${c.text ? `<div class="btxt">${esc(c.text)}</div>` : ''}${gallery(c.photos)}</div>`;
   }).join('') || '<div class="hint">ยังไม่มีข้อความ</div>';
-  const convo = fold('d-chat', cust ? 'คุยกับทีมงาน' : 'การสนทนา', `<div class="card"><div class="thread">${msgs}</div>${composerHtml(tk)}</div>`, { count: seen.length });
+  const convo = `<div class="card"><div class="thread">${msgs}</div>${composerHtml(tk)}</div>`;
   const timeline = `<div class="timeline">${tk.history.slice().reverse().map(h => `<div><b>${h.from ? STATUS_LABEL[h.from] + ' → ' : ''}${STATUS_LABEL[h.to]}</b> <span>โดย ${esc(nameOf(h.by))}</span><br><span class="mono">${fmt(h.at)}</span>${h.reason ? `<div class="reason">${esc(h.reason)}</div>` : ''}</div>`).join('')}</div>`;
-  const history = fold('d-hist', 'ประวัติ', `<div class="card">${timeline}</div>`, { open: false, count: tk.history.length });
+  const history = `<div class="card">${timeline}</div>`;
+  // ส่วนต่าง ๆ ของงานเป็นแท็บ ไม่เลื่อนหาลงไปยาว ๆ
+  const tabsHtml = panes => { const list = panes.filter(Boolean), cur = list.find(p => p.k === tkTab) || list[0];
+    return `<div class="tbar tk-tabs">${textTabs(list.map(p => [p.k, p.l, p.n]), cur.k, 'setTkTab')}</div>${cur.body}`; };
 
   if (cust) {
     const cs = custStatus(tk);
@@ -1143,10 +1150,10 @@ function ticketSheet(id) {
         ${tk.assignee ? `<small class="st-who" title="ช่างผู้ดูแลงาน">${esc(nameOf(tk.assignee))}</small>` : ''}</div>
       ${custProgress(tk)}
     </div>`;
-    const details = fold('d-info', 'รายละเอียด', `<div class="card"><h3 class="tk-title">${esc(tk.subject)}</h3>
+    const details = (`<div class="card"><h3 class="tk-title">${esc(tk.subject)}</h3>
       <dl class="facts"><dt>สถานที่</dt><dd>${esc(siteLabel(tk))}</dd><dt>แจ้งเมื่อ</dt><dd>${fmt(tk.history[0].at)}</dd></dl>
-      ${gallery(tk.photos)}</div>`, { open: false, count: tk.photos?.length ? `${tk.photos.length} รูป` : null });
-    return [tk.id, status + reportCard(tk) + ratingCard(tk) + convo + details + (cust ? '' : history)];
+      ${gallery(tk.photos)}</div>`);
+    return [tk.id, status + reportCard(tk) + ratingCard(tk) + tabsHtml([{ k: 'chat', l: 'แชท', n: seen.length, body: convo }, { k: 'info', l: 'รายละเอียด', n: tk.photos?.length || null, body: details }])];
   }
 
   const summary = `<div class="card">
@@ -1159,16 +1166,17 @@ function ticketSheet(id) {
     ${acts.length ? `<div class="row">${acts.map(a => `<button class="btn ${a.primary ? 'primary' : ''}" onclick="${a.fn}">${ic(a.icon, 16, 2)}${a.label}</button>`).join('')}</div>`
       : `<div class="locked" style="margin-top:12px">${ic('info', 18)}<div>${whyNoAction(u, tk)}</div></div>`}
   </div>`;
-  const where = fold('d-site', 'สถานที่และรายละเอียด', `<div class="card">${siteBox(tk, true)}
+  const where = (`<div class="card">${siteBox(tk, true)}
     <dl class="facts" style="margin-top:12px"><dt>แจ้งเมื่อ</dt><dd>${fmt(tk.history[0].at)} โดย ${esc(nameOf(tk.history[0].by))}</dd><dt>ประเภท</dt><dd>${cat.label}</dd><dt>ความสำคัญ</dt><dd>${PRIORITY_LABEL[tk.priority]}</dd></dl>
-    ${gallery(tk.photos)}</div>`, { open: false });
-  const worklog = canSeeWorklog(u) ? fold('d-wl', `Work log <small class="int">${ic('lock', 11, 2.2)}ภายใน</small>`, `<div class="card">
+    ${gallery(tk.photos)}</div>`);
+  const worklog = canSeeWorklog(u) ? (`<div class="card">
     ${tk.worklogs.map(w => `<div class="cmt"><div class="meta">${esc(nameOf(w.by))} · ${fmt(w.at)}</div>${esc(w.text)}${gallery(w.photos)}</div>`).join('') || '<div class="hint">ยังไม่มีบันทึกการทำงาน</div>'}
     ${canAddWorklog(u, tk) ? `<div class="cbox" style="margin-top:10px"><textarea id="newWl" rows="2" placeholder="ทำอะไรไป ใช้เวลาเท่าไร… (แนบรูปหลักฐานได้)" aria-label="บันทึกการทำงาน"></textarea><button class="btn primary send" onclick="addWorklog('${tk.id}')" aria-label="บันทึก">${ic('plus', 18, 2.4)}</button></div>
-    <div class="tools">${photoBtn('wl', 'แนบรูปหลักฐาน')}</div>${thumbsBox('wl')}` : ''}</div>`, { open: false, count: tk.worklogs.length }) : '';
+    <div class="tools">${photoBtn('wl', 'แนบรูปหลักฐาน')}</div>${thumbsBox('wl')}` : ''}</div>`) : '';
   const mission = m && canSeeMissions(u) ? `<button class="mcard" onclick="closeSheet();goTab('mission')"><i>${ic('pin', 22)}</i><div><b>ภารกิจภาคสนาม ${m.id}</b><small>${MISSION_LABEL[m.status]} — แตะเพื่อดูแผนที่</small></div>${ic('right', 18, 2)}</button>` : '';
-  return [tk.id, summary + reportCard(tk) + ratingCard(tk) + mission + convo + where + worklog + history];
+  return [tk.id, summary + reportCard(tk) + ratingCard(tk) + mission + tabsHtml([{ k: 'chat', l: 'แชท', n: seen.length, body: convo }, { k: 'info', l: 'รายละเอียด', n: null, body: where }, canSeeWorklog(u) && { k: 'wl', l: 'Work log', n: tk.worklogs.length, body: worklog }, { k: 'hist', l: 'ประวัติ', n: tk.history.length, body: history }])];
 }
+function setTkTab(k) { tkTab = k; renderSheet(); }
 function setCmtVis(v) { cmtVis = v; renderSheet(); $('newCmt')?.focus(); }
 
 /* ---------- การเปลี่ยนสถานะ ---------- */
@@ -1785,8 +1793,7 @@ function partnerSheet(id) {
       <div class="kpi"><b>${avg ? `★ ${num(avg)}` : '–'}</b><span>ความพึงพอใจ</span></div>
     </div>
     <button class="mcard" onclick="rpt.partner='${id}';rpt.view='summary';goTab('reports')"><i>${ic('chart', 22)}</i><div><b>รายงานผลงานของพาร์ทเนอร์นี้</b><small>สรุปงานที่ทำ พร้อมพิมพ์ส่งลูกค้า</small></div>${ic('right', 18, 2)}</button>
-    ${fold('p-sites', 'สถานที่ที่ดูแล', siteCards || empty('ยังไม่มีสถานที่', 'pin'), { count: c.sites.length, extra: manage ? `<button class="ibtn" onclick="openSiteForm('${id}')" title="เพิ่มสถานที่" aria-label="เพิ่มสถานที่">${ic('plus', 20, 2)}</button>` : '' })}
-    ${fold('p-tickets', 'งานล่าสุด', tks.length ? list(tks.slice(0, 6)) : empty('ยังไม่มีงาน', 'list'), { count: tks.length, open: false })}`];
+    ${paneTabs(id, [{ k: 'sites', l: 'สถานที่', n: c.sites.length, body: (siteCards || empty('ยังไม่มีสถานที่', 'pin')) + (manage ? `<button class="btn sm" onclick="openSiteForm('${id}')">${ic('plus', 15, 2)}เพิ่มสถานที่</button>` : '') }, { k: 'jobs', l: 'งานล่าสุด', n: tks.length, body: tks.length ? list(tks.slice(0, 6)) : empty('ยังไม่มีงาน', 'list') }])}`];
 }
 function openPartnerForm(id) {
   if (!canManagePartners(currentUser)) return;
