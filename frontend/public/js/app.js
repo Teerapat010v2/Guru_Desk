@@ -1359,35 +1359,57 @@ async function submitReject(id) {
 }
 
 /* ---------- มอบหมายงาน ---------- */
-// ติดต่อทีมงาน: เลื่อนนัดงาน (ส่งเป็นความเห็นในงาน) หรือขอสร้างบัญชี/เรื่องอื่น (เปิดเป็นงานใหม่ให้ทีมติดตาม)
+// ติดต่อร้องขอ: ติ๊กได้หลายเรื่อง ช่องกรอกเปลี่ยนตามที่ติ๊ก
+// เลื่อนนัด → ความเห็นในงาน + แจ้งหัวหน้าทีม · ขอสร้างบัญชี → งานใหม่ + แจ้งผู้ดูแล · เรื่องอื่น → งานใหม่ แจ้งทีมงาน
 const CONTACT_LABEL = { reschedule: 'เลื่อนนัดงาน', account: 'ขอสร้างบัญชีพนักงาน', other: 'เรื่องอื่น ๆ' };
+const CONTACT_SUB = { reschedule: 'ส่งถึงหัวหน้าทีม', account: 'ส่งถึงผู้ดูแลระบบ', other: 'ทีมงานจะติดต่อกลับ' };
 function openContact() {
   const open = tickets.filter(isOpen), today = new Date().toLocaleDateString('sv-SE');
+  const kinds = Object.keys(CONTACT_LABEL).filter(k => k !== 'reschedule' || open.length);
   openModal(`<div class="mh"><h3>ติดต่อร้องขอ</h3>${xbtn()}</div>
-    <div class="catpick">${Object.entries(CONTACT_LABEL).filter(([k]) => k !== 'reschedule' || open.length).map(([k, l], i) => `<label><input type="radio" name="ctype" value="${k}" ${i === 0 ? 'checked' : ''} onchange="document.getElementById('ctRs').hidden = this.value !== 'reschedule'"><span>${l}</span></label>`).join('')}</div>
-    <div id="ctRs"><label class="fl">งานที่ต้องการเลื่อน <em>*</em><select id="ctTicket">${open.map(t => `<option value="${t.id}">${esc(t.subject)}</option>`).join('')}</select></label>
-    <label class="fl">วันที่สะดวก <em>*</em><input id="ctDate" type="date" min="${today}"></label>
-    <div class="two"><label class="fl">เริ่ม <em>*</em><input id="ctFrom" type="time" value="09:00"></label>
-    <label class="fl">ถึง <em>*</em><input id="ctTo" type="time" value="12:00"></label></div></div>
-    <label class="fl">รายละเอียด <em>*</em><textarea id="ctText" rows="3" maxlength="1000" placeholder="เช่น ขอเปิดบัญชีให้พนักงานชื่อ... อีเมล..."></textarea></label>
+    <div class="opts">${kinds.map(k => `<label class="opt"><input type="checkbox" name="ctype" value="${k}" onchange="$('ct-${k}').style.display = this.checked ? '' : 'none'"><div><b>${CONTACT_LABEL[k]}</b><small>${CONTACT_SUB[k]}</small></div></label>`).join('')}</div>
+    <div id="ct-reschedule" style="display:none"><label class="fl">งานที่ต้องการเลื่อน <em>*</em><select id="ctTicket">${open.map(t => `<option value="${t.id}">${esc(t.subject)}</option>`).join('')}</select></label>
+      <label class="fl">วันที่สะดวก <em>*</em><input id="ctDate" type="date" min="${today}"></label>
+      <div class="two"><label class="fl">เริ่ม <em>*</em><input id="ctFrom" type="time" value="09:00"></label><label class="fl">ถึง <em>*</em><input id="ctTo" type="time" value="12:00"></label></div>
+      <label class="fl" for="ctRsText">เหตุผล (ไม่บังคับ)</label>${voiceBox('ctRsText', 'rows="2" maxlength="300" placeholder="เช่น ไม่มีคนรับเรื่องในช่วงนั้น"')}<div class="tools">${voiceBtn('ctRsText', 'พูดแทนพิมพ์')}</div></div>
+    <div id="ct-account" style="display:none"><label class="fl">ชื่อพนักงานใหม่ <em>*</em><input id="ctAccName" maxlength="80"></label>
+      ${emailField('ctAccEmail')}
+      <label class="fl">เบอร์โทร<input id="ctAccPhone" type="tel" inputmode="tel" maxlength="15" placeholder="เช่น 081-234-5678"></label></div>
+    <div id="ct-other" style="display:none"><label class="fl" for="ctOtherText">รายละเอียด <em>*</em></label>${voiceBox('ctOtherText', 'rows="3" maxlength="1000" placeholder="บอกเราสั้น ๆ ว่าต้องการอะไร"')}<div class="tools">${voiceBtn('ctOtherText', 'พูดแทนพิมพ์')}</div></div>
     <div class="err" id="ctErr" role="alert"></div>
     <div class="row end"><button class="btn" onclick="closeModal()">ยกเลิก</button><button class="btn primary" onclick="saveContact()">ส่ง</button></div>`);
-  document.getElementById('ctRs').hidden = true;
 }
 async function saveContact() {
-  const type = document.querySelector('input[name=ctype]:checked')?.value, text = $('ctText').value.trim();
-  if (!text) { $('ctErr').textContent = 'กรุณากรอกรายละเอียด'; return; }
-  if (type === 'reschedule') {
-    const date = $('ctDate').value, from = $('ctFrom').value, to = $('ctTo').value, id = $('ctTicket').value;
-    if (!id) { $('ctErr').textContent = 'ไม่มีงานที่เลื่อนได้'; return; }
-    if (!date) { $('ctErr').textContent = 'กรุณาเลือกวันที่'; return; }
-    if (!from || !to || from >= to) { $('ctErr').textContent = 'เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่ม'; return; }
-    if (!await call(`/tickets/${id}/comments`, { text: `ขอเลื่อนนัดเป็น ${date} ${from}–${to} — ${text}`, vis: 'public' }, 'ctErr')) return;
-    closeModal(); toast('ส่งคำขอเลื่อนนัดแล้ว ทีมงานจะยืนยันให้'); renderAll(); return;
+  const kinds = [...document.querySelectorAll('input[name=ctype]:checked')].map(i => i.value), v = id => $(id).value.trim(), err = m => { $('ctErr').textContent = m; };
+  if (!kinds.length) return err('กรุณาติ๊กเรื่องที่ต้องการอย่างน้อย 1 ข้อ');
+  const date = kinds.includes('reschedule') && $('ctDate').value, from = kinds.includes('reschedule') && $('ctFrom').value, to = kinds.includes('reschedule') && $('ctTo').value;
+  if (kinds.includes('reschedule')) {
+    if (!date) return err('เลื่อนนัด: กรุณาเลือกวันที่');
+    if (!from || !to || from >= to) return err('เลื่อนนัด: เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่ม');
   }
-  const d = await call('/tickets', { type: 'service', desc: `${CONTACT_LABEL[type]}: ${text}`, urgent: false, siteId: currentUser.siteId || '', category: 'other' }, 'ctErr');
-  if (!d) return;
-  closeModal(); toast(`ส่งเรื่องแล้ว เลขงาน ${d.id} ทีมงานจะติดต่อกลับ`); renderAll();
+  const email = kinds.includes('account') ? normEmail($('ctAccEmail').value) : '', phone = kinds.includes('account') ? $('ctAccPhone').value.replace(/[\s-]/g, '') : '';
+  if (kinds.includes('account')) {
+    if (!v('ctAccName')) return err('ขอสร้างบัญชี: กรุณากรอกชื่อพนักงาน');
+    if (!validEmail(email)) return err('ขอสร้างบัญชี: อีเมลไม่ถูกต้อง (เช่น name@company.com)');
+    if (phone && !validPhone(phone)) return err('ขอสร้างบัญชี: เบอร์โทรไม่ถูกต้อง (เช่น 0812345678)');
+  }
+  if (kinds.includes('other') && !v('ctOtherText')) return err('เรื่องอื่น ๆ: กรุณากรอกรายละเอียด');
+  err(''); stopVoice();
+  const sent = k => { document.querySelector(`input[name=ctype][value=${k}]`).checked = false; $('ct-' + k).style.display = 'none'; };   // ส่งสำเร็จแล้วไม่ส่งซ้ำถ้าอีกเรื่องล้มเหลว
+  if (kinds.includes('reschedule')) {
+    const why = v('ctRsText');
+    if (!await call(`/tickets/${v('ctTicket')}/comments`, { text: `ขอเลื่อนนัดเป็น ${date} ${from}–${to}${why ? ' — ' + why : ''}`, vis: 'public', route: 'team_leader' }, 'ctErr')) return;
+    sent('reschedule');
+  }
+  if (kinds.includes('account')) {
+    const desc = `ขอสร้างบัญชีพนักงาน: ${v('ctAccName')} · ${email}${phone ? ' · ' + phone : ''}`;
+    if (!await call('/tickets', { type: 'service', desc, urgent: false, siteId: currentUser.siteId || '', category: 'account', route: 'admin' }, 'ctErr')) return;
+    sent('account');
+  }
+  if (kinds.includes('other')) {
+    if (!await call('/tickets', { type: 'service', desc: `เรื่องอื่น ๆ: ${v('ctOtherText')}`, urgent: false, siteId: currentUser.siteId || '', category: 'other' }, 'ctErr')) return;
+  }
+  closeModal(); toast('ส่งคำขอแล้ว ทีมงานจะติดต่อกลับ'); renderAll();
 }
 // ลูกค้าขอเลื่อนนัด: ส่งเป็นความเห็นในงาน ทีมงานเห็นแล้ววางแผนใหม่ในปฏิทิน
 function openReschedulePick() {

@@ -77,6 +77,9 @@ async function notify(q, toIds, title, body, ticketId = null, go = null) {
 }
 // หัวหน้าทีมและผู้ดูแลที่ยังใช้งานอยู่ (คนกระจายงาน)
 const dispatchers = async q => (await q.query("select id from users where role in ('team_leader', 'admin') and removed = false")).rows.map(r => r.id);
+// คำขอของลูกค้าส่งตรงถึงบทบาทเดียว: เลื่อนนัด → หัวหน้าทีม · ขอสร้างบัญชี → ผู้ดูแล (ไม่ส่ง route = แจ้งทั้งสองบทบาท)
+const ROUTES = ['team_leader', 'admin'];
+const byRole = async (q, role) => (await q.query('select id from users where role = $1 and removed = false', [role])).rows.map(r => r.id);
 const companyUsers = async (q, cid) => (await q.query("select id from users where role = 'customer' and customer_id = $1", [cid])).rows.map(r => r.id);
 
 // ผู้ใช้ที่เข้าสู่ระบบอยู่ (จาก session ที่ยังไม่หมดอายุ) หรือ null
@@ -303,7 +306,8 @@ http.createServer(async (req, res) => {
           // แจ้งคนกระจายงาน (ยกเว้นคนที่เปิดงานเอง)
           const title = me.role !== 'customer' ? 'งานใหม่' : type === 'complaint' ? 'เรื่องร้องเรียนใหม่' : `งานใหม่${t.priority === 'urgent' ? ' · ด่วนมาก' : ''}`;
           const { rows: [co] } = await c.query('select name from customers where id = $1', [t.customerId]);
-          await notify(c, (await dispatchers(c)).filter(x => x !== me.id), title, `${t.subject} — ${co?.name ?? '-'}`, tid);
+          const to = me.role === 'customer' && ROUTES.includes(b.route) ? await byRole(c, b.route) : await dispatchers(c);
+          await notify(c, to.filter(x => x !== me.id), title, `${t.subject} — ${co?.name ?? '-'}`, tid);
           return tid;
         });
         return id ? send(res, 200, { id }) : send(res, 400, { error: 'invalid_site' });
@@ -494,6 +498,11 @@ http.createServer(async (req, res) => {
         await inTx(async c => {
           const { rows: [cm] } = await c.query('insert into comments (ticket_id, by_user, vis, text) values ($1, $2, $3, $4) returning id', [id, me.id, vis, text]);
           await savePhotos(c, id, `c${cm.id}`, photos);
+          // ลูกค้าส่งคำขอถึงบทบาทที่ระบุ (เช่น ขอเลื่อนนัด → หัวหน้าทีม) — ความเห็นปกติไม่แจ้งใคร
+          if (me.role === 'customer' && ROUTES.includes(body.route)) {
+            const { rows: [x] } = await c.query('select subject from tickets where id = $1', [id]);
+            await notify(c, await byRole(c, body.route), 'ลูกค้าขอเลื่อนนัด', `${x.subject} — ${text}`, id);
+          }
         });
         return send(res, 200, { ok: true });
       }
