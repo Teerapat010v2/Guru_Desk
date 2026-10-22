@@ -381,6 +381,10 @@ const EN = {
   'วันที่ของเดือนต้องเป็น 1–31': 'Day of month must be 1–31', 'ยังไม่ได้รัน migration 005 ในฐานข้อมูล (ดู TODO.md)': 'Database migration 005 has not been run yet (see TODO.md)',
   'ไม่มีงานที่ถึงกำหนดและยังไม่ได้สร้าง': 'No due jobs left to create',
 
+  'ส่งคำขอแล้ว — ตัวแทนบริษัทของคุณจะยืนยัน เมื่อยืนยันแล้วเข้าสู่ระบบด้วยอีเมลและรหัสผ่านที่ตั้งไว้': 'Request sent — your company representative will confirm it. Once confirmed, sign in with your email and password.',
+  'เบอร์โทร (ไม่บังคับ)': 'Phone (optional)', 'รหัสผ่านที่ใช้เข้าระบบ (อย่างน้อย 8 ตัว)': 'Password for signing in (at least 8 characters)',
+  'ตัวแทนบริษัทจะยืนยันว่าคุณเป็นพนักงานจริงก่อนเข้าใช้งาน': 'Your company representative will confirm you are an employee before you can sign in',
+
 };
 
 /* คีย์ยาวก่อน เพื่อไม่ให้คำสั้นไปตัดคำยาว */

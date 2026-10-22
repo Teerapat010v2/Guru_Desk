@@ -974,7 +974,7 @@ http.createServer(async (req, res) => {
       const photos = parsePhotos(b.photo ? [b.photo] : [], 1);
       if (!name || name.length > 80) return send(res, 400, { error: 'invalid_name' });
       if (email.length > 100 || !EMAIL.test(email)) return send(res, 400, { error: 'invalid_email' });
-      if (!/^0\d{8,9}$/.test(phone)) return send(res, 400, { error: 'invalid_phone' });
+      if (phone && !/^0\d{8,9}$/.test(phone)) return send(res, 400, { error: 'invalid_phone' });   // เบอร์โทรไม่บังคับ
       if (password.length < 8 || password.length > 200) return send(res, 400, { error: 'invalid_new_password' });
       if (!photos) return send(res, 400, { error: 'invalid_photo' });
       const out = await inTx(async c => {
@@ -983,14 +983,14 @@ http.createServer(async (req, res) => {
           ? await c.query('select id from sites where id = $1 and customer_id = $2', [String(b.siteId), cid])
           : await c.query('select id from sites where customer_id = $1 order by id limit 1', [cid]);
         if (b.siteId && !site) return 'invalid_site';
-        const { rows: [q] } = await c.query(`select count(*)::int as n, count(*) filter (where email = $2 or phone = $3)::int as dup
+        const { rows: [q] } = await c.query(`select count(*)::int as n, count(*) filter (where email = $2 or ($3 <> '' and phone = $3))::int as dup
                                              from join_requests where customer_id = $1 and status = 'pending'`, [cid, email, phone]);
         if (q.dup) return 'join_pending';
         if (q.n >= 50) return 'join_busy';   // กันคนนอกยิงคำขอไม่หยุด
         if ((await c.query('select 1 from users where email = $1', [email])).rowCount) return 'email_taken';
         const uid = `u${randomBytes(4).toString('hex')}`;
         await c.query(`insert into users (id, name, email, role, customer_id, site_id, phone, password_hash, removed)
-                       values ($1, $2, $3, 'customer', $4, $5, $6, $7, true)`, [uid, name, email, cid, site?.id ?? null, phone, await hashPassword(password)]);
+                       values ($1, $2, $3, 'customer', $4, $5, $6, $7, true)`, [uid, name, email, cid, site?.id ?? null, phone || null, await hashPassword(password)]);
         const id = `J${randomBytes(4).toString('hex')}`;
         const [photoId] = await savePhotos(c, id, 'j', photos);
         await c.query('insert into join_requests (id, customer_id, site_id, name, email, phone, photo_id) values ($1, $2, $3, $4, $5, $6, $7)',

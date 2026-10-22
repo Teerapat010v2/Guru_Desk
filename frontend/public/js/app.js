@@ -631,7 +631,7 @@ function renderJoin() {
     <input type="file" id="joinFile" accept="image/*" hidden onchange="joinPhoto(this)">
     <label class="fl">ชื่อ-นามสกุล <em>*</em><input id="jName" maxlength="80" autocomplete="name" value="${esc(joinDraft.name)}" oninput="joinDraft.name=this.value"></label>
     ${emailField('jEmail', joinDraft.email, 'oninput="joinDraft.email=this.value"')}
-    <label class="fl">เบอร์โทร <em>*</em><input id="jPhone" type="tel" inputmode="tel" autocomplete="tel" maxlength="15" placeholder="เช่น 081-234-5678" value="${esc(joinDraft.phone)}" oninput="joinDraft.phone=this.value"></label>
+    <label class="fl">เบอร์โทร (ไม่บังคับ)<input id="jPhone" type="tel" inputmode="tel" autocomplete="tel" maxlength="15" placeholder="เช่น 081-234-5678" value="${esc(joinDraft.phone)}" oninput="joinDraft.phone=this.value"></label>
     <label class="fl">รหัสผ่านที่ใช้เข้าระบบ (อย่างน้อย 8 ตัว) <em>*</em><input id="jPw" type="password" autocomplete="new-password" maxlength="200" oninput="joinDraft.password=this.value"></label>
     ${c.sites.length > 1 ? `<label class="fl">ทำงานที่ <em>*</em><select id="jSite">${c.sites.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></label>` : ''}
     <div class="err" id="jErr" role="alert"></div>
@@ -649,7 +649,7 @@ async function joinPhoto(input) {
 async function submitJoin() {
   const c = joinInfo, name = $('jName').value.trim(), phone = $('jPhone').value.replace(/[\s-]/g, ''), email = normEmail($('jEmail').value), password = $('jPw').value;
   const siteId = c.sites.some(s => s.id === $('jSite')?.value) ? $('jSite').value : c.sites[0]?.id;
-  const err = !name ? 'กรุณากรอกชื่อ' : !validEmail(email) ? 'อีเมลไม่ถูกต้อง (เช่น name@company.com)' : !validPhone(phone) ? 'เบอร์โทรไม่ถูกต้อง (เช่น 0812345678)' : pwErr(password, true);
+  const err = !name ? 'กรุณากรอกชื่อ' : !validEmail(email) ? 'อีเมลไม่ถูกต้อง (เช่น name@company.com)' : phone && !validPhone(phone) ? 'เบอร์โทรไม่ถูกต้อง (เช่น 0812345678)' : pwErr(password, true);
   if (err) { $('jErr').textContent = err; return; }
   try {
     await api(`/join/${encodeURIComponent(joinCid)}`, { name, email, phone, password, siteId, photo: joinDraft.photo ? PHOTOS[joinDraft.photo] : undefined });
@@ -672,7 +672,7 @@ function leaveJoin() {
 
 const pendingJoins = u => canApproveMembers(u, u.customer) ? joinRequests.filter(r => r.customer === u.customer && r.status === 'pending') : [];
 const joinRow = r => `<div class="trow jrow"><span class="javatar">${r.photo && PHOTOS[r.photo] ? `<img src="${PHOTOS[r.photo]}" alt="">` : ic('user', 20, 1.8)}</span>
-  <div class="tr-m"><b>${esc(r.name)}</b><small>${r.email ? esc(r.email) + ' · ' : ''}<a href="tel:${esc(r.phone)}">${esc(r.phone)}</a> ·${esc(customers[r.customer].sites.find(s => s.id === r.siteId)?.name || '-')} · ${ago(r.at)}</small></div>
+  <div class="tr-m"><b>${esc(r.name)}</b><small>${r.email ? esc(r.email) + ' · ' : ''}${r.phone ? `<a href="tel:${esc(r.phone)}">${esc(r.phone)}</a> · ` : ''}${esc(customers[r.customer].sites.find(s => s.id === r.siteId)?.name || '-')} · ${ago(r.at)}</small></div>
   <button class="btn soft sm" onclick="decideJoin('${r.id}',true)">ยอมรับ</button>${ibtn('x', `ปฏิเสธ ${esc(r.name)}`, `decideJoin('${r.id}',false)`)}</div>`;
 // ตัวแทนบริษัทกดยอมรับ/ปฏิเสธ: เซิร์ฟเวอร์เปิดหรือลบบัญชีที่รอไว้ แล้วโหลดข้อมูลใหม่
 async function decideJoin(id, ok) {
@@ -845,19 +845,38 @@ async function doReset() {
   try { await api('/reset', { token: resetToken, password: pw }); toast('ตั้งรหัสผ่านใหม่แล้ว — เข้าสู่ระบบด้วยรหัสใหม่ได้เลย'); leaveReset(); }
   catch (e) { $('rsErr').textContent = e.message; }
 }
-/* สมัครด้วยรหัสบริษัท: server ตรวจรหัสกับรายชื่อบริษัทในฐานข้อมูล ไม่ใช่รหัสที่ถูกต้องก็ไปต่อไม่ได้ · บัญชีจะเปิดใช้เมื่อตัวแทนบริษัทกดยอมรับ */
+/* ลงชื่อเข้าใช้ครั้งแรก: กรอกชื่อ รหัสบริษัท อีเมล รหัสผ่าน (รูปไม่บังคับ) ในฟอร์มเดียว
+   server ตรวจรหัสบริษัทกับตารางบริษัท รหัสผิดส่งไม่ได้ · บัญชีเปิดใช้เมื่อตัวแทนบริษัทกดยอมรับ */
 function openJoinCode() {
+  joinDraft = { name: '', email: '', phone: '', photo: null, password: '' };
   openModal(`<div class="mh"><h3>ลงชื่อเข้าใช้</h3>${xbtn()}</div>
-    <label class="fl">รหัสบริษัท <em>*</em><input id="jcCode" maxlength="40" autocomplete="off" placeholder="ขอรหัสจากตัวแทนบริษัทของคุณ" onkeydown="if(event.key==='Enter')submitJoinCode()"></label>
-    <div class="err" id="jcErr" role="alert"></div>
-    <div class="row end"><button class="btn" onclick="closeModal()">ยกเลิก</button><button class="btn primary" onclick="submitJoinCode()">ถัดไป</button></div>`);
+    <button type="button" class="join-photo" onclick="$('jcFile').click()"><i id="jcPh">${ic('camera', 28, 1.7)}</i>รูปของคุณ (ไม่บังคับ)</button>
+    <input type="file" id="jcFile" accept="image/*" hidden onchange="jcPhotoPick(this)">
+    <label class="fl">ชื่อ-นามสกุล <em>*</em><input id="jcName" maxlength="80" autocomplete="name"></label>
+    <label class="fl">รหัสบริษัท <em>*</em><input id="jcCode" maxlength="40" autocomplete="off" placeholder="ขอรหัสจากตัวแทนบริษัทของคุณ"></label>
+    ${emailField('jcEmail')}
+    <label class="fl">รหัสผ่านที่ใช้เข้าระบบ (อย่างน้อย 8 ตัว) <em>*</em><input id="jcPw" type="password" autocomplete="new-password" maxlength="200" onkeydown="if(event.key==='Enter')submitJoinCode()"></label>
+    <div class="err" id="jcErr" role="alert"></div><div class="hint" id="jcOk" role="status"></div>
+    <div class="row end"><button class="btn" onclick="closeModal()">ยกเลิก</button><button class="btn primary" id="jcBtn" onclick="submitJoinCode()">ส่งคำขอ</button></div>
+    <p class="hint" style="margin:10px 0 0">ตัวแทนบริษัทจะยืนยันว่าคุณเป็นพนักงานจริงก่อนเข้าใช้งาน</p>`);
+}
+async function jcPhotoPick(input) {
+  const f = input.files[0]; input.value = '';
+  if (!f) return;
+  try { if (joinDraft.photo) dropPhoto(joinDraft.photo); joinDraft.photo = await compressPhoto(f); $('jcPh').innerHTML = `<img src="${PHOTOS[joinDraft.photo]}" alt="">`; } catch { toast('เปิดไฟล์รูปนี้ไม่ได้'); }
 }
 async function submitJoinCode() {
-  const code = $('jcCode').value.trim();
-  if (!code) { $('jcErr').textContent = 'กรุณากรอกรหัสบริษัท'; return; }
-  const info = await api(`/join/${encodeURIComponent(code)}`).catch(() => null);
-  if (!info) { $('jcErr').textContent = 'ไม่พบรหัสบริษัทนี้ — ตรวจรหัสอีกครั้ง'; return; }
-  closeModal(); pickJoin(code);
+  const name = $('jcName').value.trim(), code = $('jcCode').value.trim(), email = normEmail($('jcEmail').value), password = $('jcPw').value;
+  const err = !name ? 'กรุณากรอกชื่อ' : !code ? 'กรุณากรอกรหัสบริษัท' : !validEmail(email) ? 'อีเมลไม่ถูกต้อง (เช่น name@company.com)' : pwErr(password, true);
+  if (err) { $('jcErr').textContent = err; return; }
+  $('jcErr').textContent = ''; $('jcBtn').disabled = true;
+  try {
+    await api(`/join/${encodeURIComponent(code)}`, { name, email, password, photo: joinDraft.photo ? PHOTOS[joinDraft.photo] : undefined });
+    if (joinDraft.photo) dropPhoto(joinDraft.photo);
+    joinDraft.photo = null;
+    $('jcOk').textContent = 'ส่งคำขอแล้ว — ตัวแทนบริษัทของคุณจะยืนยัน เมื่อยืนยันแล้วเข้าสู่ระบบด้วยอีเมลและรหัสผ่านที่ตั้งไว้';
+    $('jcBtn').hidden = true;
+  } catch (e) { $('jcErr').textContent = e.message === API_ERR.not_found ? 'ไม่พบรหัสบริษัทนี้ — ตรวจรหัสอีกครั้ง' : e.message; $('jcBtn').disabled = false; }
 }
 async function doLogin() {
   const email = normEmail($('lgId').value), password = $('lgPw').value;
