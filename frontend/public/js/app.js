@@ -366,7 +366,7 @@ const avgRating = rows => { const r = rows.filter(x => x.rating); return r.lengt
 /* ---------- สถานะแบบภาษาคน สำหรับลูกค้า ---------- */
 const missionOf = tk => tk.missionId ? missions[tk.missionId] : null;
 function custStatus(tk) {
-  const tech = tk.assignee ? `ช่าง${nameOf(tk.assignee)}` : 'ช่าง';
+  const tech = ''; // ชื่อช่างแสดงที่มุมขวาบนของการ์ดสถานะแทน
   const m = missionOf(tk), ms = m && canSeeMissionStatus(currentUser, tk) ? m.status : null;
   if (tk.status === 'new') return { icon: 'inbox', t: 'ได้รับเรื่องแล้ว', d: 'ทีมงานกำลังจัดช่างที่เหมาะสมให้คุณ' };
   if (tk.status === 'resolved') return { icon: 'pen', t: 'งานเสร็จแล้ว — รอคุณเซ็นรับ', d: 'ตรวจสอบผลงานแล้วเซ็นรับได้เลย' };
@@ -1122,13 +1122,14 @@ function ticketSheet(id) {
   if (cust) {
     const cs = custStatus(tk);
     const status = `<div class="card status-card st-${tk.status}">
-      <div class="st-row"><div class="st-ic">${ic(cs.icon, 24, 1.9)}</div><div><b>${esc(cs.t)}</b><small>${esc(cs.d)}</small></div></div>
+      ${tk.assignee ? `<small class="st-who">${ic('tool', 12, 2)}${esc(nameOf(tk.assignee))}</small>` : ''}
+      <div class="st-row"><div class="st-ic">${ic(cs.icon, 22, 1.9)}</div><div><b>${esc(cs.t)}</b><small>${esc(cs.d)}</small></div></div>
       ${custProgress(tk)}
     </div>`;
     const details = fold('d-info', 'รายละเอียด', `<div class="card"><h3 class="tk-title">${esc(tk.subject)}</h3>
-      <dl class="facts"><dt>เลขที่</dt><dd class="mono">${tk.id}</dd><dt>สถานที่</dt><dd>${esc(siteLabel(tk))}</dd><dt>แจ้งเมื่อ</dt><dd>${fmt(tk.history[0].at)}</dd></dl>
+      <dl class="facts"><dt>สถานที่</dt><dd>${esc(siteLabel(tk))}</dd><dt>แจ้งเมื่อ</dt><dd>${fmt(tk.history[0].at)}</dd></dl>
       ${gallery(tk.photos)}</div>`, { open: false, count: tk.photos?.length ? `${tk.photos.length} รูป` : null });
-    return [tk.id, status + reportCard(tk) + ratingCard(tk) + convo + details + history];
+    return [tk.id, status + reportCard(tk) + ratingCard(tk) + convo + details + (cust ? '' : history)];
   }
 
   const summary = `<div class="card">

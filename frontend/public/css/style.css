@@ -830,3 +830,17 @@ textarea,input,select{border-radius:14px}
   .cp{flex:1 1 0;min-width:0}
   .cp span{white-space:normal;overflow:visible;text-overflow:clip;font-size:0.6875rem;line-height:1.25}
 }
+
+/* การ์ดสถานะลูกค้าบนมือถือ: เล็กลง ชื่อช่างมุมขวาบน */
+@media (max-width:959px){
+  .status-card{position:relative;padding:10px 12px}
+  .status-card .st-row{gap:10px;padding-right:0}
+  .st-ic{width:34px;height:34px;border-radius:10px}
+  .status-card b{font-size:0.875rem}
+  .status-card small{font-size:0.6875rem}
+  .st-who{position:absolute;top:8px;right:10px;display:flex;align-items:center;gap:4px;font-size:0.6875rem;color:var(--text-2)}
+  .cprog{margin:8px 0 0}
+  .cp{font-size:0.625rem}
+  .cp i{height:3px;margin-bottom:4px}
+  .fold[data-fold="d-info"] .facts{font-size:0.8125rem}
+}
