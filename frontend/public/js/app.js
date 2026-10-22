@@ -1122,8 +1122,8 @@ function ticketSheet(id) {
   if (cust) {
     const cs = custStatus(tk);
     const status = `<div class="card status-card st-${tk.status}">
-      ${tk.assignee ? `<small class="st-who">${ic('tool', 12, 2)}${esc(nameOf(tk.assignee))}</small>` : ''}
-      <div class="st-row"><div class="st-ic">${ic(cs.icon, 22, 1.9)}</div><div><b>${esc(cs.t)}</b><small>${esc(cs.d)}</small></div></div>
+      <div class="st-row"><div class="st-ic">${ic(cs.icon, 22, 1.9)}</div><div class="st-t"><b>${esc(cs.t)}</b><small>${esc(cs.d)}</small></div>
+        ${tk.assignee ? `<small class="st-who" title="ช่างผู้ดูแลงาน">${esc(nameOf(tk.assignee))}</small>` : ''}</div>
       ${custProgress(tk)}
     </div>`;
     const details = fold('d-info', 'รายละเอียด', `<div class="card"><h3 class="tk-title">${esc(tk.subject)}</h3>

@@ -844,3 +844,8 @@ textarea,input,select{border-radius:14px}
   .cp i{height:3px;margin-bottom:4px}
   .fold[data-fold="d-info"] .facts{font-size:0.8125rem}
 }
+
+/* ชื่อช่างอยู่ในแถวเดียวกับสถานะ (ไม่ลอยทับ): ข้อความสถานะยืดได้ ชื่อช่างเล็กชิดขวา ตัดด้วย … */
+.status-card .st-t{flex:1;min-width:0}
+.status-card .st-row{align-items:flex-start}
+.status-card .st-who{position:static;flex:none;max-width:36%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.6875rem;color:var(--text-2);margin:2px 0 0;text-align:right}
