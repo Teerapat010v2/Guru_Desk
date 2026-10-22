@@ -1622,6 +1622,12 @@ function closeDoc() { $('doc').classList.remove('open'); $('doc').setAttribute('
 const paperHead = (title, en, right) => `<header class="p-head"><img src="img/logo.png" class="p-logo" alt="Guru IT Solution Co., Ltd." width="150" height="44">
   <div class="p-title"><h1>${title}</h1><small>${en}</small>${right || ''}</div></header>`;
 
+/* หัวหน้าทีม/ผู้ดูแล: ส่งใบรายงาน (รวมเช็กลิสต์) ถึงหัวหน้าพนักงานของบริษัททางอีเมล */
+async function emailReport(id) {
+  try { const d = await api(`/tickets/${id}/emailreport`, {});
+    toast(d.sent ? `ส่งอีเมลแล้ว ${d.sent} ที่อยู่` : 'ยังไม่ได้ตั้งค่าอีเมลของระบบ (SMTP) จึงยังส่งไม่ได้'); }
+  catch (e) { toast(e.message); }
+}
 function openReport(id) {
   const tk = tickets.find(x => x.id === id);
   if (!tk || !canSeeReport(currentUser, tk)) return;
@@ -1652,7 +1658,7 @@ function openReport(id) {
     </div>
     ${st === 'nosign' ? `<div class="p-note">หมายเหตุ: ปิดงานโดยไม่มีลายเซ็นลูกค้า — ${esc(r.closedNoSign || '-')}</div>` : ''}
     <footer class="p-foot">เอกสารนี้สร้างจากระบบ Guru IT Service Desk · สถานะ: ${SIGN_LABEL[st]} · พิมพ์เมื่อ ${fmtS(new Date())}</footer>`;
-  openDoc(`ใบรายงาน ${r.no}`, html);
+  openDoc(`ใบรายงาน ${r.no}`, html, isManager(currentUser) ? `<button class="btn sm" onclick="emailReport('${id}')">${ic('send', 15, 2)}ส่งอีเมล</button>` : '');
 }
 
 /* ---------- รายงานสรุป (หัวหน้าทีม / ผู้ดูแล) ---------- */
@@ -1767,6 +1773,16 @@ function renderPartners() {
   + `<div class="tbar">${textTabs([['all', 'ทั้งหมด', all.length], ...Object.entries(CONTRACT_LABEL).map(([k, l]) => [k, l.replace(/\s*\(.*\)/, ''), all.filter(c => c.contract === k).length])], pfilter, 'setPFilter')}<span class="sp"></span>${densityBtn()}</div>
   <div id="plist">${partnerListHtml()}</div>`;
 }
+/* งาน MA ประจำเดือน: หัวหน้าทีมกดสร้างงานให้ทุกสถานที่ของลูกค้า แล้ววางวัน+มอบหมายช่างต่อ (ลูกค้าได้แจ้งเตือนเมื่อวางวัน) */
+async function createMaJobs(id) {
+  const c = customers[id]; if (!c || !canManagePartners(currentUser)) return;
+  const month = new Date().toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+  const exist = new Set(tickets.filter(t => t.customer === id && t.subject.startsWith(`ตรวจเช็ก MA ${month}`)).map(t => t.siteId));
+  const todo = c.sites.filter(s => !exist.has(s.id));
+  if (!todo.length) return toast('สร้างงาน MA เดือนนี้ครบทุกสถานที่แล้ว');
+  for (const s of todo) if (!await call('/tickets', { type: 'service', customerId: id, siteId: s.id, subject: `ตรวจเช็ก MA ${month} — ${s.name}`, category: 'other', priority: 'medium' })) return;
+  toast(`สร้างงาน MA ${todo.length} งานแล้ว — วางวันและมอบหมายช่างได้ในหน้างาน`); renderAll();
+}
 function partnerSheet(id) {
   const c = customers[id], u = currentUser;
   if (!c || !canSeePartners(u)) return [id, empty('ไม่พบข้อมูล', 'search')];
@@ -1780,7 +1796,7 @@ function partnerSheet(id) {
       <div class="row"><a class="btn sm" href="${mapUrl(s.address)}" target="_blank" rel="noopener">${ic('pin', 15, 2)}เปิดแผนที่</a>
         ${manage ? `<button class="btn sm" onclick="openSiteForm('${id}','${s.id}')">${ic('pen', 15, 2)}แก้ไข</button>` : ''}</div></div>`; }).join('');
   return [c.name, `<div class="card">
-      <div class="badges"><span class="tag">${CONTRACT_LABEL[c.contract] || '-'}</span><span class="sp"></span>${manage ? `<button class="btn sm" onclick="openPartnerForm('${id}')">${ic('pen', 15, 2)}แก้ไข</button>` : ''}</div>
+      <div class="badges"><span class="tag">${CONTRACT_LABEL[c.contract] || '-'}</span><span class="sp"></span>${manage && c.contract === 'ma' ? `<button class="btn sm" onclick="createMaJobs('${id}')">${ic('plus', 15, 2)}สร้างงาน MA เดือนนี้</button>` : ''}${manage ? `<button class="btn sm" onclick="openPartnerForm('${id}')">${ic('pen', 15, 2)}แก้ไข</button>` : ''}</div>
       <h3 class="tk-title">${esc(c.name)}</h3>
       <dl class="facts"><dt>ผู้ติดต่อหลัก</dt><dd>${esc(c.contact || '-')}</dd>
         <dt>โทร</dt><dd>${c.phone ? `<a href="tel:${esc(c.phone)}">${esc(c.phone)}</a>` : '-'}</dd>

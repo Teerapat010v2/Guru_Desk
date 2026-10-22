@@ -11,7 +11,17 @@ const from = () => process.env.MAIL_FROM || process.env.SMTP_USER;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // ---------- ใบรายงานเมื่อลูกค้าเซ็นรับ ----------
-export function reportMail({ no, subject, summary, parts, hours, signName }) {
+// เช็กลิสต์ MA เป็นตารางในอีเมล (ถ้ามี)
+const tick = ok => (ok ? '&#10003;' : '&ndash;');
+const th = 'style="border:1px solid #cfd8e3;padding:4px 8px;background:#eef3fa;text-align:left"', td = 'style="border:1px solid #cfd8e3;padding:4px 8px"';
+const checklistHtml = c => !c ? '' : `<h3 style="margin:16px 0 6px">MA Checklist</h3>
+  <table style="border-collapse:collapse;font-size:13px"><tr><th ${th}>Hardware</th><th ${th}>Check</th><th ${th}>Note</th></tr>
+  ${(c.hw ?? []).map(x => `<tr><td ${td}>${esc(x.item)}</td><td ${td} align="center">${tick(x.ok)}</td><td ${td}>${esc(x.note)}</td></tr>`).join('')}</table>
+  ${(c.pc ?? []).length ? `<table style="border-collapse:collapse;font-size:13px;margin-top:10px"><tr><th ${th}>User</th><th ${th}>Disk Clean</th><th ${th}>Windows update</th><th ${th}>Virus Scan</th></tr>
+  ${c.pc.map(x => `<tr><td ${td}>${esc(x.name)}</td><td ${td} align="center">${tick(x.disk)}</td><td ${td} align="center">${tick(x.win)}</td><td ${td} align="center">${tick(x.virus)}</td></tr>`).join('')}</table>` : ''}
+  ${c.notes ? `<p><b>Note:</b> ${esc(c.notes)}</p>` : ''}`;
+
+export function reportMail({ no, subject, summary, parts, hours, signName, checklist }) {
   return {
     subject: `ใบรายงาน ${no} — ${subject}`,
     html: `<div style="font-family:sans-serif;color:#18212d">
@@ -20,6 +30,7 @@ export function reportMail({ no, subject, summary, parts, hours, signName }) {
       <p><b>สรุปงานที่ทำ</b><br>${esc(summary).replace(/\n/g, '<br>')}</p>
       ${parts ? `<p><b>อุปกรณ์ / อะไหล่</b><br>${esc(parts)}</p>` : ''}
       <p><b>เวลาที่ใช้</b> ${Number(hours)} ชั่วโมง</p>
+      ${checklistHtml(checklist)}
       <p><b>ผู้รับงาน</b> ${esc(signName)}</p>
       <p style="color:#5f6875;font-size:12px">อีเมลนี้ส่งอัตโนมัติจาก Guru IT Service Desk</p></div>`,
   };

@@ -317,7 +317,7 @@ http.createServer(async (req, res) => {
       }
     }
     // การกระทำกับงาน: ตรวจสิทธิ์ทุกครั้งที่ server
-    const act = req.method === 'POST' ? req.url.match(/^\/api\/tickets\/(T-\d{1,10})\/(status|assign|comments|worklog|resolve|signoff|rating|schedule|mode)$/) : null;
+    const act = req.method === 'POST' ? req.url.match(/^\/api\/tickets\/(T-\d{1,10})\/(status|assign|comments|worklog|resolve|signoff|rating|schedule|mode|emailreport)$/) : null;
     if (act) {
       const me = await currentUser(req);
       if (!me) return send(res, 401, { error: 'not_signed_in' });
@@ -401,11 +401,11 @@ http.createServer(async (req, res) => {
           await c.query('delete from photos where id like $1', [`${id}:r:%`]);
           await savePhotos(c, id, 'r', photos);
           await audit(c, me, `ออกใบรายงาน ${id}`, '→ รอลูกค้าเซ็นรับ');
+          const { rows: [x] } = await c.query('select subject, customer_id from tickets where id = $1', [id]);
+          // หัวหน้าทีม/ผู้ดูแลรู้ว่ามีใบรายงานรอตรวจ (พิมพ์ PDF/ส่งอีเมลได้จากใบรายงาน)
+          await notify(c, (await dispatchers(c)).filter(u => u !== me.id), 'ช่างออกใบรายงานแล้ว', `${x.subject} — ${body.checklist ? 'มีเช็กลิสต์ MA' : 'รอลูกค้าเซ็นรับ'}`, id);
           // ให้ลูกค้าเซ็นในแอป: แจ้งทุกคนในบริษัท · เซ็นหน้างานทันที (signNow) ไม่ต้องแจ้ง
-          if (body.signNow !== true) {
-            const { rows: [x] } = await c.query('select subject, customer_id from tickets where id = $1', [id]);
-            await notify(c, await companyUsers(c, x.customer_id), 'งานเสร็จแล้ว — กรุณาเซ็นรับ', x.subject, id);
-          }
+          if (body.signNow !== true) await notify(c, await companyUsers(c, x.customer_id), 'งานเสร็จแล้ว — กรุณาเซ็นรับ', x.subject, id);
           return true;
         });
         return done ? send(res, 200, { ok: true }) : send(res, 409, { error: 'status_changed' });
@@ -478,8 +478,27 @@ http.createServer(async (req, res) => {
                                                 left join users u on u.id = t.assignee_id where t.id = $1`, [id]);
         const info = { ticketId: id, subject: m?.subject, customer: m?.customer, contract: m?.contract, address: m?.address, date, from, to };
         Promise.all([sendScheduleMail(m?.cust, info), sendScheduleMail(m?.tech, info)]).catch(err => console.error('mail:', err.message));
+        // แจ้งเตือนในแอป: พนักงานของบริษัทนั้นรู้ว่าช่างจะเข้า · ช่างที่รับงานเห็นนัดใหม่
+        const when = `${date} ${from}–${to}`;
+        await notify(pool, await companyUsers(pool, t.customer_id), 'ช่างจะเข้าไปที่สถานที่ของคุณ', `${m?.subject} — ${when}`, id);
+        await notify(pool, [t.assignee_id], 'มีนัดหมายงาน', `${m?.subject} — ${when}`, id);
         await audit(pool, me, `วางแผนงาน ${id}`, `${date} ${from}-${to}`);
         return send(res, 200, { ok: true });
+      }
+      if (action === 'emailreport') {
+        // หัวหน้าทีม/ผู้ดูแลส่งใบรายงาน (รวมเช็กลิสต์) ทางอีเมลถึงหัวหน้าพนักงานของบริษัท — ไม่มีตัวแทนก็ใช้อีเมลบริษัท
+        if (!isManager(me)) return send(res, 403, { error: 'forbidden' });
+        const { rows: [m] } = await pool.query(`select c.email as cemail, r.no, r.summary, r.parts, r.hours, to_jsonb(r) -> 'checklist' as checklist, t.subject, s.name as sname
+                                                from tickets t join customers c on c.id = t.customer_id join reports r on r.ticket_id = t.id left join signoffs s on s.ticket_id = t.id where t.id = $1`, [id]);
+        if (!m) return send(res, 404, { error: 'not_found' });
+        const { rows: reps } = await pool.query("select email from users where customer_id = $1 and role = 'customer' and approver and removed = false and email is not null", [t.customer_id]);
+        const to = [...new Set((reps.length ? reps.map(r => r.email) : [m.cemail]).filter(Boolean))];
+        if (!to.length) return send(res, 400, { error: 'no_recipient' });
+        let sent = 0;
+        try { for (const addr of to) if (await sendReportMail(addr, { no: m.no, subject: m.subject, summary: m.summary, parts: m.parts, hours: m.hours, signName: m.sname || '-', checklist: m.checklist })) sent++; }
+        catch (err) { console.error('mail:', err.message); return send(res, 502, { error: 'mail_failed' }); }
+        await audit(pool, me, `ส่งใบรายงานทางอีเมล ${id}`, `${sent}/${to.length} ที่อยู่`);
+        return send(res, 200, { sent, total: to.length });
       }
       if (action === 'mode') {
         // ไปหน้างานหรือรีโมท: หัวหน้าทีม/ผู้ดูแล หรือช่างที่รับงานนั้น
