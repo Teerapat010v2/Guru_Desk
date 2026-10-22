@@ -80,6 +80,18 @@ const dispatchers = async q => (await q.query("select id from users where role i
 // คำขอของลูกค้าส่งตรงถึงบทบาทเดียว: เลื่อนนัด → หัวหน้าทีม · ขอสร้างบัญชี → ผู้ดูแล (ไม่ส่ง route = แจ้งทั้งสองบทบาท)
 const ROUTES = ['team_leader', 'admin'];
 const byRole = async (q, role) => (await q.query('select id from users where role = $1 and removed = false', [role])).rows.map(r => r.id);
+// ผู้รับอีเมลใบรายงานเมื่องานเสร็จ: งาน MA → หัวหน้าพนักงานของบริษัท (ไม่มีก็อีเมลบริษัท) · งานแจ้งเหตุ → ผู้แจ้ง (ไม่มีอีเมลก็ตามกติกา MA)
+// งาน MA = มีเช็กลิสต์ในใบรายงาน หรือชื่อขึ้นต้น "ตรวจเช็ก MA" (ที่ปุ่มสร้างงาน MA ตั้งให้)
+async function reportRecipients(q, ticketId) {
+  const { rows: [t] } = await q.query(`select t.subject, t.customer_id, c.email as cemail, to_jsonb(r) -> 'checklist' as cl,
+      (select u.email from ticket_history h join users u on u.id = h.by_user where h.ticket_id = t.id and h.from_status is null order by h.id limit 1) as reporter
+    from tickets t join customers c on c.id = t.customer_id left join reports r on r.ticket_id = t.id where t.id = $1`, [ticketId]);
+  if (!t) return [];
+  const isMA = t.cl != null || t.subject.startsWith('ตรวจเช็ก MA');
+  if (!isMA && t.reporter) return [t.reporter];
+  const { rows: reps } = await q.query("select email from users where customer_id = $1 and role = 'customer' and approver and removed = false and email is not null", [t.customer_id]);
+  return [...new Set((reps.length ? reps.map(r => r.email) : [t.cemail]).filter(Boolean))];
+}
 const companyUsers = async (q, cid) => (await q.query("select id from users where role = 'customer' and customer_id = $1", [cid])).rows.map(r => r.id);
 
 // ผู้ใช้ที่เข้าสู่ระบบอยู่ (จาก session ที่ยังไม่หมดอายุ) หรือ null
@@ -435,8 +447,9 @@ http.createServer(async (req, res) => {
         });
         if (done) {
           // ส่งใบรายงานให้ลูกค้าอัตโนมัติ — ส่งไม่ได้ก็ไม่ทำให้การปิดงานล้ม
-          const { rows: [m] } = await pool.query('select c.email, r.no, r.summary, r.parts, r.hours, t.subject from tickets t join customers c on c.id = t.customer_id join reports r on r.ticket_id = t.id where t.id = $1', [id]);
-          sendReportMail(m?.email, { no: m?.no, subject: m?.subject, summary: m?.summary, parts: m?.parts, hours: m?.hours, signName: name })
+          const { rows: [m] } = await pool.query("select r.no, r.summary, r.parts, r.hours, to_jsonb(r) -> 'checklist' as checklist, t.subject from tickets t join reports r on r.ticket_id = t.id where t.id = $1", [id]);
+          const to = await reportRecipients(pool, id);
+          Promise.all(to.map(a => sendReportMail(a, { no: m?.no, subject: m?.subject, summary: m?.summary, parts: m?.parts, hours: m?.hours, signName: name, checklist: m?.checklist })))
             .catch(err => console.error('mail:', err.message));
         }
         return done ? send(res, 200, { ok: true }) : send(res, 409, { error: 'status_changed' });
@@ -486,13 +499,12 @@ http.createServer(async (req, res) => {
         return send(res, 200, { ok: true });
       }
       if (action === 'emailreport') {
-        // หัวหน้าทีม/ผู้ดูแลส่งใบรายงาน (รวมเช็กลิสต์) ทางอีเมลถึงหัวหน้าพนักงานของบริษัท — ไม่มีตัวแทนก็ใช้อีเมลบริษัท
+        // หัวหน้าทีม/ผู้ดูแลส่งใบรายงานทางอีเมลตามกติกา reportRecipients (MA → หัวหน้าพนักงาน · แจ้งเหตุ → ผู้แจ้ง)
         if (!isManager(me)) return send(res, 403, { error: 'forbidden' });
-        const { rows: [m] } = await pool.query(`select c.email as cemail, r.no, r.summary, r.parts, r.hours, to_jsonb(r) -> 'checklist' as checklist, t.subject, s.name as sname
-                                                from tickets t join customers c on c.id = t.customer_id join reports r on r.ticket_id = t.id left join signoffs s on s.ticket_id = t.id where t.id = $1`, [id]);
+        const { rows: [m] } = await pool.query(`select r.no, r.summary, r.parts, r.hours, to_jsonb(r) -> 'checklist' as checklist, t.subject, s.name as sname
+                                                from tickets t join reports r on r.ticket_id = t.id left join signoffs s on s.ticket_id = t.id where t.id = $1`, [id]);
         if (!m) return send(res, 404, { error: 'not_found' });
-        const { rows: reps } = await pool.query("select email from users where customer_id = $1 and role = 'customer' and approver and removed = false and email is not null", [t.customer_id]);
-        const to = [...new Set((reps.length ? reps.map(r => r.email) : [m.cemail]).filter(Boolean))];
+        const to = await reportRecipients(pool, id);
         if (!to.length) return send(res, 400, { error: 'no_recipient' });
         let sent = 0;
         try { for (const addr of to) if (await sendReportMail(addr, { no: m.no, subject: m.subject, summary: m.summary, parts: m.parts, hours: m.hours, signName: m.sname || '-', checklist: m.checklist })) sent++; }
