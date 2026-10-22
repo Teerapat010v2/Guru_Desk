@@ -500,7 +500,9 @@ function homeTech(u) {
   const doneMonth = historyRows(u).filter(x => monthKey(x.report.at) === monthKey(new Date())).length;
   return pageHead(`สวัสดี ${u.name}`, teams[u.team], '', { tools: false })
   + `<div class="kpis tech-kpis"><div class="kpi"><b>${todo}</b><span>ต้องทำ</span></div><div class="kpi"><b>${todayN}</b><span>นัดวันนี้</span></div><div class="kpi"><b>${doneMonth}</b><span>เสร็จเดือนนี้</span></div></div>`
-  + (m ? `<button class="mcard" onclick="goTab('mission')"><i>${ic('pin', 22, 1.8)}</i><div><b>ภารกิจที่กำลังทำ</b><small>${MISSION_LABEL[m.status]}</small></div>${ic('right', 18, 2)}</button>` : '');
+  + (m ? `<button class="mcard" onclick="goTab('mission')"><i>${ic('pin', 22, 1.8)}</i><div><b>ภารกิจที่กำลังทำ</b><small>${MISSION_LABEL[m.status]}</small></div>${ic('right', 18, 2)}</button>` : '')
+  + (() => { const a = mine.filter(x => x.assignee === u.id && isOpen(x)).sort(byPriority); return a.length ? `<div class="sec-h"><h2>งานที่ได้รับมอบหมาย <span class="cnt">${a.length}</span></h2><button onclick="goTab('tickets')">ดูทั้งหมด ›</button></div>
+    <div class="card">${a.slice(0, 3).map(x => `<button class="trow" onclick="openTicket('${x.id}')"><div class="tr-m"><b>${esc(x.subject)}</b><small>${esc(siteLabel(x))} · ${STATUS_LABEL[x.status]}</small></div>${ic('right', 16, 2)}</button>`).join('')}</div>` : ''; })();
 }
 /* ประวัติการทำงานของช่าง: แยกเป็นเดือน เดือนล่าสุดเปิดไว้ */
 function renderHistory() {
