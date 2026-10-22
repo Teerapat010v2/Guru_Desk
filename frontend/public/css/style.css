@@ -1005,3 +1005,7 @@ textarea,input,select{border-radius:14px}
 .card>.row.sq .sqb{width:76px;height:76px;min-height:0;padding:6px 4px;flex-direction:column;gap:6px;border-radius:14px;font-size:0.75rem;line-height:1.2;white-space:normal;text-align:center}
 .card>.row.sq .sqb svg{width:22px;height:22px}
 .card>.row.sq .sqb span{display:block}
+
+/* ปุ่มดำเนินการสี่เหลี่ยม: ขนาดสเกลตามความกว้างจอ (58–84px) และเรียงเต็มแถวก่อนขึ้นแถวใหม่ */
+.card>.row.sq{display:grid;grid-template-columns:repeat(auto-fill,clamp(58px,17vw,84px));gap:8px;justify-content:start}
+.card>.row.sq .sqb{width:100%;height:auto;aspect-ratio:1/1;padding:4px 2px}
