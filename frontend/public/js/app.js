@@ -995,6 +995,12 @@ async function saveProject() {
   closeModal(); toast('สร้างโปรเจกต์แล้ว'); renderAll(); openProject(d.id);
 }
 
+/* ปฏิทินงาน (ช่าง = นัดของตัวเอง · หัวหน้าทีม = ทั้งหมด): งานที่วางวันไว้และยังไม่เสร็จ แยกเป็นวัน */
+const plannedTickets = u => visibleTickets(u).filter(t => t.plan && isOpen(t)).sort((a, b) => (a.plan.date + a.plan.from) < (b.plan.date + b.plan.from) ? -1 : 1);
+function openCalendar() {
+  const pl = plannedTickets(currentUser), days = [...new Set(pl.map(t => t.plan.date))];
+  openModal(`<div class="mh"><h3>ปฏิทินงาน</h3>${xbtn()}</div>` + (pl.length ? days.map(d => `<div class="cal-day"><b>${new Date(d + 'T00:00').toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' })}</b>${pl.filter(t => t.plan.date === d).map(t => `<button class="trow" onclick="closeModal();openTicket('${t.id}')"><div class="tr-m"><b>${t.plan.from}–${t.plan.to} · ${esc(t.subject)}</b><small>${typeTag(t) ? (isMAJob(t) ? 'MA' : 'แจ้งเหตุ') + ' · ' : ''}${esc(custName(t.customer))} · ${esc(siteLabel(t))}${isManager(currentUser) ? ' · ' + esc(t.assignee ? nameOf(t.assignee) : 'ยังไม่มอบหมาย') : ''}</small></div>${ic('right', 16, 2)}</button>`).join('')}</div>`).join('') : empty('ยังไม่มีนัดหมาย — หัวหน้าทีมวางวันและเวลาได้ในหน้ารายละเอียดงาน', 'clock')));
+}
 /* ---------- หน้า "ฉัน": โปรไฟล์ · โหมดสี · ตั้งค่า ---------- */
 function renderMe() {
   const u = currentUser;
@@ -1003,6 +1009,7 @@ function renderMe() {
   + `<div class="me-card">${avatarHtml(u, 76)}<b>${esc(u.name)}</b><small>${ROLE_LABEL[u.role]} · ${u.customer ? esc(custName(u.customer)) : u.team ? teams[u.team] : 'Guru IT Solution'}</small><small>${esc(u.email || '')}</small>
     <button class="btn soft sm" onclick="openProfile()">${ic('pen', 16, 2)}แก้ไขข้อมูลของฉัน</button></div>
   <div class="sgroup">
+    ${['technician', 'team_leader'].includes(u.role) ? row('clock', 'ปฏิทินงาน', 'openCalendar()', `${plannedTickets(u).length} นัดหมายที่ยังไม่ถึง/ยังไม่เสร็จ`) : ''}
     ${u.role === 'technician' ? row('clock', 'ประวัติการทำงาน', "goTab('history')", 'แยกตามเดือน') : ''}
     ${row('note', 'โน้ตส่วนตัว', 'openNotes()', `${store.get(notesKey(), []).length} โน้ต · เห็นเฉพาะคุณ`)}
     ${row('bell', 'การแจ้งเตือน', 'openNotifs()', !('Notification' in window) ? 'เบราว์เซอร์นี้แจ้งเตือนได้เฉพาะในแอป' : Notification.permission === 'granted' ? 'เด้งเตือนบนเครื่องนี้: เปิดอยู่' : 'แตะเพื่อเปิดเด้งเตือนบนเครื่องนี้')}
