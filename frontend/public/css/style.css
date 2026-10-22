@@ -745,3 +745,16 @@ textarea,input,select{border-radius:14px}
 
 /* แถวงานบนหน้าหลักช่าง: ไอคอนหรือรูปลูกค้าขนาดเล็ก */
 .card .trow .tc-ic{width:32px;height:32px;border-radius:9px;flex:none}
+
+/* การ์ดงานบนมือถือ: บรรทัดเดียวต่อหัวข้อ ตัวอักษรเล็กลง ป้ายเล็กลง */
+@media (max-width:959px){
+  .tcard{padding:10px 12px;border-radius:16px}
+  .tcard .tc-ic{width:30px;height:30px;border-radius:9px}
+  .tc-h{gap:10px;align-items:center}
+  .tc-t b{font-size:0.9063rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tc-t small{font-size:0.7188rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tc-f{margin:6px 0 0 40px;gap:4px}
+  .tag{font-size:0.6875rem;padding:1px 6px}
+  .pill,.sbadge{font-size:0.6875rem;padding:1px 7px 1px 6px}
+  .tcard .btn.sm{min-height:32px;padding:3px 10px;font-size:0.75rem}
+}
