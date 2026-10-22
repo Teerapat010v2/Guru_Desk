@@ -1115,8 +1115,7 @@ function ticketSheet(id) {
     return `<div class="bubble ${mine ? 'me' : ''} ${c.vis === 'internal' ? 'internal' : ''}">
       <div class="meta">${c.vis === 'internal' ? `${ic('lock', 12, 2.2)}บันทึกภายใน · ` : ''}${esc(nameOf(c.by))}${staff && cust ? ' (ทีมงาน)' : ''} · ${ago(c.at)}</div>${c.text ? `<div class="btxt">${esc(c.text)}</div>` : ''}${gallery(c.photos)}</div>`;
   }).join('') || '<div class="hint">ยังไม่มีข้อความ</div>';
-  // ลูกค้าเห็นรายละเอียดก่อน การสนทนาพับไว้ (แตะเพื่อเปิด) ลดการเลื่อนหา
-  const convo = fold('d-chat', cust ? 'คุยกับทีมงาน' : 'การสนทนา', `<div class="card"><div class="thread">${msgs}</div>${composerHtml(tk)}</div>`, { count: seen.length, open: !cust });
+  const convo = fold('d-chat', cust ? 'คุยกับทีมงาน' : 'การสนทนา', `<div class="card"><div class="thread">${msgs}</div>${composerHtml(tk)}</div>`, { count: seen.length });
   const timeline = `<div class="timeline">${tk.history.slice().reverse().map(h => `<div><b>${h.from ? STATUS_LABEL[h.from] + ' → ' : ''}${STATUS_LABEL[h.to]}</b> <span>โดย ${esc(nameOf(h.by))}</span><br><span class="mono">${fmt(h.at)}</span>${h.reason ? `<div class="reason">${esc(h.reason)}</div>` : ''}</div>`).join('')}</div>`;
   const history = fold('d-hist', 'ประวัติ', `<div class="card">${timeline}</div>`, { open: false, count: tk.history.length });
 
@@ -1125,7 +1124,6 @@ function ticketSheet(id) {
     const status = `<div class="card status-card st-${tk.status}">
       <div class="st-row"><div class="st-ic">${ic(cs.icon, 24, 1.9)}</div><div><b>${esc(cs.t)}</b><small>${esc(cs.d)}</small></div></div>
       ${custProgress(tk)}
-      ${tk.assignee ? `<div class="techline"><div class="avatar sm">${ic('tool', 16, 1.8)}</div><div><b>ช่าง${esc(nameOf(tk.assignee))}</b><small>ช่างผู้ดูแลงานของคุณ</small></div></div>` : ''}
     </div>`;
     const details = fold('d-info', 'รายละเอียด', `<div class="card"><h3 class="tk-title">${esc(tk.subject)}</h3>
       <dl class="facts"><dt>เลขที่</dt><dd class="mono">${tk.id}</dd><dt>สถานที่</dt><dd>${esc(siteLabel(tk))}</dd><dt>แจ้งเมื่อ</dt><dd>${fmt(tk.history[0].at)}</dd></dl>
