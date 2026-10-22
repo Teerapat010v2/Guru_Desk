@@ -1102,8 +1102,8 @@ function reportCard(tk) {
   if (canRejectWork(u, tk)) buttons.push(`<button class="btn ghost-red" onclick="openReject('${tk.id}')">${ic('undo', 16, 2)}ยังไม่เรียบร้อย</button>`);
   return fold('d-report', `ใบรายงาน <span class="mono muted">${r.no}</span>`, `<div class="card ${s === 'waiting' && cust ? 'attn' : ''}">
     <div class="badges">${signBadge(tk)}</div>
-    <p class="rsum">${esc(r.summary)}</p>
     ${gallery(r.photos)}
+    <p class="rsum">${esc(r.summary)}</p>
     <div class="rmeta"><span>${ic('user', 13, 2)}${esc(nameOf(r.by))}</span><span>${ic('clock', 13, 2)}${hrs(r.hours)}</span>${r.parts ? `<span>${ic('tool', 13, 2)}${esc(r.parts)}</span>` : ''}</div>
     ${r.signoff ? `<div class="signed"><img src="${r.signoff.sig}" alt="ลายเซ็น"><div><b>${esc(r.signoff.name)}</b><small>${esc(r.signoff.position || '')}${r.signoff.position ? ' · ' : ''}${fmt(r.signoff.at)} · ${r.signoff.via === 'onsite' ? 'เซ็นหน้างาน' : 'เซ็นผ่านแอป'}</small></div></div>` : ''}
     ${s === 'nosign' ? `<div class="locked">${ic('alert', 18)}<div>ปิดงานโดยไม่มีลายเซ็น: ${esc(r.closedNoSign || '-')}</div></div>` : ''}
@@ -1134,7 +1134,7 @@ function ticketSheet(id) {
   const msgs = seen.map(c => {
     const mine = c.by === u.id, staff = users[c.by] ? isStaff(users[c.by]) : false;
     return `<div class="bubble ${mine ? 'me' : ''} ${c.vis === 'internal' ? 'internal' : ''}">
-      <div class="meta">${c.vis === 'internal' ? `${ic('lock', 12, 2.2)}บันทึกภายใน · ` : ''}${esc(nameOf(c.by))}${staff && cust ? ' (ทีมงาน)' : ''} · ${ago(c.at)}</div>${c.text ? `<div class="btxt">${esc(c.text)}</div>` : ''}${gallery(c.photos)}</div>`;
+      <div class="meta">${c.vis === 'internal' ? `${ic('lock', 12, 2.2)}บันทึกภายใน · ` : ''}${esc(nameOf(c.by))}${staff && cust ? ' (ทีมงาน)' : ''} · ${ago(c.at)}</div>${gallery(c.photos)}${c.text ? `<div class="btxt">${esc(c.text)}</div>` : ''}</div>`;
   }).join('') || '<div class="hint">ยังไม่มีข้อความ</div>';
   const convo = `<div class="card"><div class="thread">${msgs}</div>${composerHtml(tk)}</div>`;
   const timeline = `<div class="timeline">${tk.history.slice().reverse().map(h => `<div><b>${h.from ? STATUS_LABEL[h.from] + ' → ' : ''}${STATUS_LABEL[h.to]}</b> <span>โดย ${esc(nameOf(h.by))}</span><br><span class="mono">${fmt(h.at)}</span>${h.reason ? `<div class="reason">${esc(h.reason)}</div>` : ''}</div>`).join('')}</div>`;
@@ -1170,7 +1170,7 @@ function ticketSheet(id) {
     <dl class="facts" style="margin-top:12px"><dt>แจ้งเมื่อ</dt><dd>${fmt(tk.history[0].at)} โดย ${esc(nameOf(tk.history[0].by))}</dd><dt>ประเภท</dt><dd>${cat.label}</dd><dt>ความสำคัญ</dt><dd>${PRIORITY_LABEL[tk.priority]}</dd></dl>
     ${gallery(tk.photos, true)}</div>`);
   const worklog = canSeeWorklog(u) ? (`<div class="card">
-    ${tk.worklogs.map(w => `<div class="cmt"><div class="meta">${esc(nameOf(w.by))} · ${fmt(w.at)}</div>${esc(w.text)}${gallery(w.photos)}</div>`).join('') || '<div class="hint">ยังไม่มีบันทึกการทำงาน</div>'}
+    ${tk.worklogs.map(w => `<div class="cmt"><div class="meta">${esc(nameOf(w.by))} · ${fmt(w.at)}</div>${gallery(w.photos)}${esc(w.text)}</div>`).join('') || '<div class="hint">ยังไม่มีบันทึกการทำงาน</div>'}
     ${canAddWorklog(u, tk) ? `<div class="cbox" style="margin-top:10px"><textarea id="newWl" rows="2" placeholder="ทำอะไรไป ใช้เวลาเท่าไร… (แนบรูปหลักฐานได้)" aria-label="บันทึกการทำงาน"></textarea><button class="btn primary send" onclick="addWorklog('${tk.id}')" aria-label="บันทึก">${ic('plus', 18, 2.4)}</button></div>
     <div class="tools">${photoBtn('wl', 'แนบรูปหลักฐาน')}</div>${thumbsBox('wl')}` : ''}</div>`) : '';
   const mission = m && canSeeMissions(u) ? `<button class="mcard" onclick="closeSheet();goTab('mission')"><i>${ic('pin', 22)}</i><div><b>ภารกิจภาคสนาม ${m.id}</b><small>${MISSION_LABEL[m.status]} — แตะเพื่อดูแผนที่</small></div>${ic('right', 18, 2)}</button>` : '';
@@ -1283,8 +1283,8 @@ function openSignOff(id) {
       <div class="mr-head"><span class="mono">${r.no}</span><span>${tk.id}</span></div>
       <b>${esc(tk.subject)}</b>
       <small>${esc(s?.name || '')}${tk.location ? ' · ' + esc(tk.location) : ''}</small>
-      <div class="mr-sum">${esc(r.summary)}</div>
       ${gallery(r.photos)}
+      <div class="mr-sum">${esc(r.summary)}</div>
       <div class="rmeta"><span>${ic('user', 13, 2)}ช่าง${esc(nameOf(r.by))}</span><span>${ic('clock', 13, 2)}${hrs(r.hours)}</span>${r.parts ? `<span>${ic('tool', 13, 2)}${esc(r.parts)}</span>` : ''}</div>
       <a class="lnk" onclick="openReport('${id}')" style="font-size:13px">ดูใบรายงานฉบับเต็ม</a>
     </div>

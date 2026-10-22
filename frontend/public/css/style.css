@@ -1016,3 +1016,12 @@ textarea,input,select{border-radius:14px}
 .gallery.big{grid-template-columns:1fr;gap:10px}
 .gallery.big .gimg{aspect-ratio:4/3;border-radius:14px}
 @media (min-width:960px){.gallery.big{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}}
+
+/* รูปมาก่อนข้อความ เรียงข้างกันเป็นแถว ไม่ซ้อน · แชทเป็นฟองแยกซ้าย-ขวาชัดเจน */
+.bubble .gallery,.cmt .gallery{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px}
+.bubble .gimg,.cmt .gimg{flex:0 0 auto;width:64px;height:64px;aspect-ratio:auto;border-radius:10px}
+.bubble{max-width:86%;padding:10px 12px;box-shadow:var(--shadow-s)}
+.bubble .meta{margin-bottom:6px;font-size:0.75rem}
+.bubble.me{background:var(--primary-s);box-shadow:none}
+.thread{gap:10px}
+.card>.gallery:first-child,.mini-report>.gallery{margin:0 0 10px}
