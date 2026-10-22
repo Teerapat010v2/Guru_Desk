@@ -864,3 +864,7 @@ textarea,input,select{border-radius:14px}
   .fold[data-fold="tk-status"] .fold-b{padding-top:0}
   .tbar{margin:0 0 8px}
 }
+
+/* ทางลัดหน้าหลัก: แถวเดียวทุกบทบาทและทุกความกว้าง (เดิมบางช่วงจอเป็น 2 คอลัมน์ ช่องว่างกว้างผิดปกติ) */
+.tiles{grid-template-columns:repeat(auto-fit,minmax(84px,1fr));max-width:560px;gap:8px;margin-bottom:10px}
+.tile{white-space:normal;min-height:0;padding:6px 2px}
