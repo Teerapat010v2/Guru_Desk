@@ -1566,7 +1566,7 @@ function focusLater(id) { if (matchMedia('(pointer:fine)').matches) setTimeout((
 /* ---------- เอกสาร (ใบรายงาน / รายงานสรุป) — พิมพ์หรือบันทึกเป็น PDF ได้ ---------- */
 function openDoc(title, html, extra = '') {
   $('doc').innerHTML = `<div class="doc-bar"><button class="ibtn" onclick="closeDoc()" aria-label="กลับ">${ic('back', 22, 2)}</button><b>${esc(title)}</b><span class="sp"></span>${extra}
-    <button class="btn primary sm" onclick="window.print()">${ic('print', 16, 2)}พิมพ์ / PDF</button></div>
+    <button class="btn primary sm" onclick="window.print()">${ic('print', 16, 2)}บันทึกเป็น PDF</button></div>
     <div class="doc-scroll"><article class="paper">${html}</article></div>`;
   $('doc').classList.add('open'); $('doc').setAttribute('aria-hidden', 'false'); $('doc').querySelector('.doc-scroll').scrollTop = 0;
   document.title = title; syncHistory();
