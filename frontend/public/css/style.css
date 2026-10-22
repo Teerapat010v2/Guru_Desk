@@ -806,3 +806,20 @@ textarea,input,select{border-radius:14px}
 .tile{background:none}
 .tile:hover{background:none}
 .tiles.compact .tile{padding:4px 2px;min-height:0}
+
+/* รายละเอียดงานและหน้า "ฉัน" บนมือถือ: ตัวอักษรและระยะเล็กลง ไม่ตัดหลายบรรทัด */
+@media (max-width:959px){
+  .status-card{padding:12px}
+  .status-card .st-row{gap:10px}
+  .status-card .st-row>i{width:36px;height:36px;border-radius:10px;flex:none}
+  .status-card b{font-size:0.9375rem}
+  .status-card small{font-size:0.75rem}
+  .cprog{gap:3px;margin:12px 0 2px}
+  .cp{font-size:0.6875rem;line-height:1.25;text-align:center}
+  .cp span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+  .sheet-bar h2{font-size:0.9688rem}
+  .srow{min-height:46px;padding:8px 12px;font-size:0.875rem;gap:10px}
+  .srow small{font-size:0.7188rem}
+  .sgroup{margin-top:12px}
+  .sgroup h4{padding:10px 12px 2px;font-size:0.7188rem}
+}
