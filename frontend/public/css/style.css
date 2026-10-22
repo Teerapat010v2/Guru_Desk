@@ -823,3 +823,10 @@ textarea,input,select{border-radius:14px}
   .sgroup{margin-top:12px}
   .sgroup h4{padding:10px 12px 2px;font-size:0.7188rem}
 }
+
+/* ขั้นตอนงานบนมือถือ: ช่องเท่ากันทุกขั้น ชื่อขั้นตัดลงบรรทัดใหม่ได้ ไม่ทับกัน */
+@media (max-width:959px){
+  .cprog{gap:6px}
+  .cp{flex:1 1 0;min-width:0}
+  .cp span{white-space:normal;overflow:visible;text-overflow:clip;font-size:0.6875rem;line-height:1.25}
+}
