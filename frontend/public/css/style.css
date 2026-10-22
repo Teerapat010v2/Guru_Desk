@@ -999,3 +999,9 @@ textarea,input,select{border-radius:14px}
 .card>.row{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .card>.row .btn{min-height:34px;padding:4px 12px;font-size:0.8125rem;border-radius:10px}
 .card>.row .btn svg{width:15px;height:15px}
+
+/* ปุ่มดำเนินการของงาน: สี่เหลี่ยมจัตุรัส ไอคอนบน ข้อความสั้นล่าง เรียงต่อกัน */
+.card>.row.sq{gap:8px}
+.card>.row.sq .sqb{width:76px;height:76px;min-height:0;padding:6px 4px;flex-direction:column;gap:6px;border-radius:14px;font-size:0.75rem;line-height:1.2;white-space:normal;text-align:center}
+.card>.row.sq .sqb svg{width:22px;height:22px}
+.card>.row.sq .sqb span{display:block}

@@ -1163,7 +1163,7 @@ function ticketSheet(id) {
       <dt>ลูกค้า</dt><dd>${isManager(u) ? `<a class="lnk" onclick="openPartner('${tk.customer}')">${esc(custName(tk.customer))}</a>` : esc(custName(tk.customer))}</dd>
       <dt>ผู้รับผิดชอบ</dt><dd>${tk.assignee ? (isManager(u) ? `<a class="lnk" onclick="openTech('${tk.assignee}')">${esc(nameOf(tk.assignee))}</a>` : esc(nameOf(tk.assignee))) : '<span class="prio-urgent">ยังไม่มอบหมาย</span>'}</dd>
     </dl>
-    ${acts.length ? `<div class="row">${acts.map(a => `<button class="btn sm ${a.primary ? 'primary' : ''}" onclick="${a.fn}">${ic(a.icon, 16, 2)}${a.label}</button>`).join('')}</div>`
+    ${acts.length ? `<div class="row sq">${acts.map(a => `<button class="btn sqb ${a.primary ? 'primary' : ''}" onclick="${a.fn}" title="${esc(a.label)}" aria-label="${esc(a.label)}">${ic(a.icon, 22, 1.8)}<span>${esc(a.short || a.label)}</span></button>`).join('')}</div>`
       : `<div class="locked" style="margin-top:12px">${ic('info', 18)}<div>${whyNoAction(u, tk)}</div></div>`}
   </div>`;
   const where = (`<div class="card">${siteBox(tk, true)}
