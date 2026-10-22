@@ -1025,3 +1025,11 @@ textarea,input,select{border-radius:14px}
 .bubble.me{background:var(--primary-s);box-shadow:none}
 .thread{gap:10px}
 .card>.gallery:first-child,.mini-report>.gallery{margin:0 0 10px}
+
+/* ทางลัดบนมือถือ: ไอคอนและชื่ออยู่ระดับเดียวกันทุกปุ่ม (จัดชิดบน) · ข้อความรองบรรทัดเดียว ไม่ตกบรรทัด */
+@media (max-width:959px){
+  .tiles{align-items:start}
+  .tile{justify-content:flex-start;gap:6px}
+  .tile span{line-height:1.25;overflow-wrap:normal}
+  .tile small{margin-top:-4px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:0.75rem}
+}

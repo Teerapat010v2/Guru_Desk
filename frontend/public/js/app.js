@@ -532,7 +532,7 @@ function homeLead(u) {
   + '<div class="hm-main">' + tiles([
       { icon: 'pin', label: 'ติดตามช่าง', fn: "goTab('mission')" },
       { icon: 'building', label: 'พาร์ทเนอร์', sub: `${allSites().length} สถานที่`, fn: "goTab('partners')" },
-      { icon: 'chart', label: 'สรุปผล', sub: `${done7.length} งานใน 7 วัน${avg ? ` · ★ ${num(avg)}` : ''}`, fn: "rpt.view='summary';goTab('reports')" }])
+      { icon: 'chart', label: 'สรุปผล', sub: `${done7.length} งาน · 7 วัน`, fn: "rpt.view='summary';goTab('reports')" }])
   + (() => { const q = tickets.filter(t => t.status === 'new' && !t.assignee).sort(byPriority);   // งานรอมอบหมาย: แค่บอกว่าทำอะไรที่ไหน
     return `<div class="sec-h"><h2>ยังไม่มอบหมาย${q.length ? ` <span class="cnt hot">${q.length}</span>` : ''}</h2>${q.length ? `<button onclick="goTab('tickets');setFilter('new')">ดูทั้งหมด ›</button>` : ''}</div>`
       + (q.length ? `<div class="card">${q.slice(0, 5).map(x => `<button class="trow" onclick="openTicket('${x.id}')"><div class="tr-m"><b>${esc(x.subject)}</b><small>${esc(custName(x.customer))} · ${esc(siteLabel(x))}</small></div>${ic('right', 16, 2)}</button>`).join('')}</div>` : '<p class="hint" style="margin:0">ไม่มีงานรอมอบหมาย</p>'); })()
