@@ -718,3 +718,6 @@ textarea,input,select{border-radius:14px}
 
 /* มือถือ: ชื่อหน้าเล็กลง (ต้องอยู่ท้ายไฟล์เพื่อทับสไตล์กลาง) */
 @media (max-width:599px){.ph-t h1{font-size:1.25rem}}
+
+/* หน้าแรกช่าง: ตัวเลขสรุป 3 ช่องเสมอ */
+.tech-kpis{grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:4px}

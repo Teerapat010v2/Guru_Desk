@@ -273,6 +273,7 @@ function screensFor(u) {
   if (canSeePartners(u)) s.add('partners');
   if (canSeeSummaryReport(u)) s.add('reports');
   if (u.role === 'customer') s.add('projects');
+  if (u.role === 'technician') s.add('history');
   return s;
 }
 function tabBadge(u, id) {
@@ -488,13 +489,34 @@ function workSection(u) {
   return `${isStaff(u) ? typeChips(u) : ''}<div class="tbar">${textTabs(tabsData.map(t => [t.k, t.l, t.arr.length]), cur.k, 'setHomeTab')}</div>
     ${cur.arr.length ? list(cur.arr, { quick: true }) : empty('ไม่มีงานในหมวดนี้ตอนนี้')}`;
 }
+/* งานที่ช่างคนนี้ออกใบรายงานแล้ว (ใหม่สุดก่อน) */
+const historyRows = u => visibleTickets(u).filter(x => x.report && x.report.by === u.id).sort((x, y) => y.report.at - x.report.at);
+const monthKey = d => d.getFullYear() * 12 + d.getMonth();
 function homeTech(u) {
+  const mine = visibleTickets(u), today = new Date().toLocaleDateString('sv');
   const m = Object.values(missions).find(x => x.technician === u.id && x.status !== 'completed');
-  return pageHead('หน้าหลัก', `${u.name} · ${teams[u.team]}`)
-  + tiles([
-      { icon: 'pin', label: 'ภารกิจ', sub: m ? MISSION_LABEL[m.status] : 'ไม่มี', fn: "goTab('mission')" },
-      { icon: 'list', label: 'งานทั้งหมด', fn: "goTab('tickets')" }])
+  const todo = mine.filter(x => ['assigned', 'in_progress'].includes(x.status)).length;
+  const todayN = mine.filter(x => x.plan?.date === today && isOpen(x)).length;
+  const doneMonth = historyRows(u).filter(x => monthKey(x.report.at) === monthKey(new Date())).length;
+  return pageHead(`สวัสดี ${u.name}`, teams[u.team], '', { tools: false })
+  + `<div class="kpis tech-kpis"><div class="kpi"><b>${todo}</b><span>ต้องทำ</span></div><div class="kpi"><b>${todayN}</b><span>นัดวันนี้</span></div><div class="kpi"><b>${doneMonth}</b><span>เสร็จเดือนนี้</span></div></div>`
+  + (m ? `<button class="mcard" onclick="goTab('mission')"><i>${ic('pin', 22, 1.8)}</i><div><b>ภารกิจที่กำลังทำ</b><small>${MISSION_LABEL[m.status]}</small></div>${ic('right', 18, 2)}</button>` : '')
+  + `<button class="mcard" onclick="goTab('history')"><i>${ic('clock', 22, 1.8)}</i><div><b>ประวัติการทำงาน</b><small>งานที่ทำเสร็จ แยกเป็นรายเดือน</small></div>${ic('right', 18, 2)}</button>`
+  + `<div class="sec-h"><h2>งานของฉัน</h2><button onclick="goTab('tickets')">ดูทั้งหมด ›</button></div>`
   + workSection(u);
+}
+/* ประวัติการทำงานของช่าง: แยกเป็นเดือน เดือนล่าสุดเปิดไว้ */
+function renderHistory() {
+  const u = currentUser, rows = historyRows(u), months = [];
+  rows.forEach(x => { const k = monthKey(x.report.at); (months.find(g => g.k === k) || (months.push({ k, d: x.report.at, rows: [] }), months.at(-1))).rows.push(x); });
+  return pageHead('ประวัติการทำงาน', rows.length ? `ทั้งหมด ${rows.length} งาน · ${hrs(rows.reduce((t, x) => t + (+x.report.hours || 0), 0))}` : '')
+  + (months.length ? months.map((g, i) => fold('h-' + g.k, g.d.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }),
+      `<div class="card">${g.rows.map(x => `<div class="rrow">
+        <div class="rr-main" onclick="openTicket('${x.id}')"><div class="rr-top"><span>${fmtD(x.report.at)}</span><span>${hrs(x.report.hours)}</span></div>
+          <b>${esc(x.subject)}</b><small>${esc(custName(x.customer))} · ${esc(siteLabel(x))}</small>${signBadge(x)}</div>
+        <button class="ibtn" onclick="openReport('${x.id}')" aria-label="ดูใบรายงาน ${x.report.no}" title="ดูใบรายงาน">${ic('doc', 20, 1.8)}</button></div>`).join('')}</div>`,
+      { count: g.rows.length, open: i === 0 })).join('')
+    : empty('ยังไม่มีงานที่ทำเสร็จ — งานที่ออกใบรายงานแล้วจะมาอยู่ที่นี่', 'clock'));
 }
 function homeLead(u) {
   const techs = assignableTechs(u);
@@ -1873,7 +1895,7 @@ function renderAll() {
   $('shell').className = `shell role-${u.role}`;
   renderTabbar();
   const home = { customer: homeCustomer, technician: homeTech, team_leader: homeLead, admin: homeAdmin }[u.role];
-  const screens = { home: () => home(u), tickets: renderTickets, mission: renderMission, partners: renderPartners, reports: renderReports, users: renderUsers, me: renderMe, projects: renderProjects, team: renderTeam };
+  const screens = { home: () => home(u), tickets: renderTickets, mission: renderMission, partners: renderPartners, reports: renderReports, users: renderUsers, me: renderMe, projects: renderProjects, team: renderTeam, history: renderHistory };
   $('screen').innerHTML = `<div class="page">${screens[tab]()}</div>`;
   renderFab();
   if (sheetStack.length) renderSheet();
