@@ -91,3 +91,12 @@ export async function sendScheduleMail(to, info) {
   await transport.sendMail({ from: from(), to, ...m, icalEvent: { method: 'REQUEST', content: ics } });
   return true;
 }
+
+// ลิงก์รีเซ็ตรหัสผ่าน (ใช้ครั้งเดียว หมดอายุใน 30 นาที) — ไม่ตั้ง SMTP = ไม่ส่ง (คืน false)
+export async function sendResetMail(to, link) {
+  if (!transport || !to) return false;
+  await transport.sendMail({ from: from(), to, subject: 'รีเซ็ตรหัสผ่าน Guru IT Service Desk',
+    html: `<div style="font-family:sans-serif;color:#18212d"><p>มีคำขอรีเซ็ตรหัสผ่านสำหรับบัญชีนี้</p><p><a href="${esc(link)}">ตั้งรหัสผ่านใหม่</a> (ลิงก์ใช้ได้ครั้งเดียว ภายใน 30 นาที)</p>
+      <p style="color:#5f6875;font-size:12px">ถ้าคุณไม่ได้ขอ ไม่ต้องทำอะไร รหัสผ่านเดิมยังใช้ได้</p></div>` });
+  return true;
+}

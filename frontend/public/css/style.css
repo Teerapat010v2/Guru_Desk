@@ -683,7 +683,7 @@ label.fl+.voicebox{margin-top:6px}
 .ttabs button.on,.side-filters button.on{color:var(--primary)}
 
 /* มือถือ: หัวหน้าแถวเดียว ชื่อหน้าซ้าย กระดิ่ง/ค้นหาขวา · ภาษากับโหมดสีย้ายไปหน้า ฉัน · ชื่อยาวตัดเหลือ 2 บรรทัด */
-@media (max-width:599px){.ph-t h1{font-size:1.3125rem}.phead .ph-a .ftool{display:none}.ph-t h1{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}}
+@media (max-width:599px){.ph-t h1{font-size:1.3125rem}.ph-t h1{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}}
 
 /* หน้าแรกลูกค้าแบบสะอาด: ทางลัดแถวเดียว และหัวข้อรายการพร้อมลิงก์ดูทั้งหมด */
 .tiles.compact{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;max-width:560px;margin-bottom:6px}
@@ -1067,3 +1067,27 @@ textarea,input,select{border-radius:14px}
 /* ใบรายงานพิมพ์: ตารางเครื่องผู้ใช้เริ่มหน้าใหม่ และแถวไม่ถูกตัดกลางแถว */
 .p-newpage{break-before:page}
 .paper tr{break-inside:avoid}
+
+/* ===== รอบปรับตามรายการปรับปรุง (แชท ปุ่มไอคอน progress bar ความกว้าง ภาษา/ธีม) ===== */
+/* แชท: ข้อความของผู้ใช้ที่ล็อกอินอยู่ชิดซ้าย (.me ตัดสินจากรหัสผู้ใช้ c.by === u.id) ของคนอื่นชิดขวา */
+.bubble{align-self:flex-end;border-radius:14px 4px 14px 14px}
+.bubble.me{align-self:flex-start;border-radius:4px 14px 14px 14px}
+/* ปุ่มที่เป็นไอคอนล้วน: ไม่มีพื้น/ขอบ/เงา เหลือพื้นอ่อนตอนชี้และวงโฟกัส (ไอคอนใช้สี currentColor เห็นทั้งสองโหมด) */
+.ftool,.ph-a .ftool{background:none;border:0;box-shadow:none;border-radius:12px;width:40px;height:44px}
+.ftool:hover,.xbtn:hover{background:var(--card-2)}
+.xbtn{background:none}
+.ftool:focus-visible,.xbtn:focus-visible,.ibtn:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+/* progress bar ทุกแบบสูง/มุม/สีเท่ากัน */
+.pbar,.lbar,.dtrack{height:8px;border-radius:99px;background:var(--card-2);overflow:hidden}
+.pbar i,.lbar i,.dtrack i{display:block;height:100%;border-radius:99px;background:var(--primary);transition:width .3s}
+.lbar i.hi{background:var(--warn)}
+.pbar{margin:10px 0 0}.dtrack{margin-top:6px}
+/* ใช้ความกว้างหน้าจอเต็ม: แท็บเล็ตไม่จำกัด 640 · คอมไม่จำกัด 1080 */
+@media (min-width:600px) and (max-width:959px){.shell{max-width:none}}
+@media (min-width:960px){.page{max-width:none;margin:0}.pg-home{max-width:1180px}.pg-home:has(.hm-side){max-width:none}}
+.sortseg{margin:6px 0 10px;max-width:420px}
+.sortseg button{font-size:0.8125rem;min-height:34px}
+
+/* ตารางงาน MA ประจำเดือน */
+.ma-sch.off{opacity:.65}
+.ma-sch .badges b{font-size:0.9375rem;font-weight:500;min-width:0;overflow-wrap:anywhere}

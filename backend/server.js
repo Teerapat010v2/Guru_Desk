@@ -2,7 +2,8 @@
 import http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import pg from 'pg';
-import { sendReportMail, sendScheduleMail } from './mail.js';
+import { sendReportMail, sendScheduleMail, sendResetMail } from './mail.js';
+import { monthKey, isDue, dueDateThisMonth, nextDueDate } from './ma-schedule.js';
 import { hashPassword, verifyPassword, hashToken, newToken } from './auth.js';
 import { isStaff, isManager, canCreateTicket, canTransition, canReject, canAssign, canAssignTech, canWorklog, canResolve, canSignOff, canRate, canManagePartners, canManageTeam, canEditProject, canApproveMembers } from './rules.js';
 
@@ -14,6 +15,7 @@ const CATEGORIES = ['printer', 'network', 'account', 'install', 'repair', 'cctv'
 const PRIORITIES = ['urgent', 'high', 'medium', 'low'];
 const COOKIE = 'gd_session';
 const SESSION_HOURS = 12;
+const resetHits = new Map();   // อีเมล → { n, at } จำกัดขอลิงก์รีเซ็ต 5 ครั้ง/ชั่วโมง
 const failedLogins = new Map();   // อีเมล → { n: จำนวนครั้งที่ใส่รหัสผิด, at: เวลาครั้งล่าสุด }
 const LOCK_MS = 15 * 60000;
 // ใช้ตรวจรหัสเมื่อไม่มีบัญชี เพื่อให้เวลาตอบใกล้เคียงกัน (กันเดาว่าอีเมลไหนมีบัญชี)
@@ -136,7 +138,51 @@ async function inTx(fn) {
   }
 }
 
+// ---------- งาน MA ประจำเดือน (ตาราง ma_schedules) ----------
+// ตัวสร้างงานทำงานที่ server เอง (ตอนเริ่มและทุกชั่วโมง) ไม่ต้องเปิดเบราว์เซอร์ · (ตาราง, เดือน) ซ้ำไม่ได้จาก ma_runs จึงไม่สร้างงานซ้ำ
+// ยังไม่รัน migration 005 = ข้ามเงียบๆ
+async function runMaSchedules(now = new Date()) {
+  let rows;
+  try { rows = (await pool.query('select s.*, c.name as cname, st.name as sname from ma_schedules s join customers c on c.id = s.customer_id left join sites st on st.id = s.site_id where s.active')).rows; }
+  catch (err) { if (err.code !== '42P01') console.error('ma:', err.message); return 0; }
+  const ym = monthKey(now), months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+  const hasPlan = (await pool.query("select 1 from information_schema.columns where table_name = 'tickets' and column_name = 'planned_on'")).rowCount > 0;
+  let made = 0;
+  for (const sch of rows) {
+    if (!isDue(now, sch.day_of_month)) continue;
+    try {
+      await inTx(async c => {
+        const ins = await c.query('insert into ma_runs (schedule_id, ym) values ($1, $2) on conflict do nothing', [sch.id, ym]);
+        if (!ins.rowCount) return;   // เดือนนี้สร้างแล้ว
+        await c.query("select pg_advisory_xact_lock(hashtext('ticket_id'))");
+        const { rows: [{ n }] } = await c.query("select coalesce(max(substr(id, 3)::bigint), 1000) + 1 as n from tickets");
+        const tid = `T-${n}`, subject = `ตรวจเช็ก MA ${months[now.getMonth()]} ${now.getFullYear() + 543} — ${sch.name}`.slice(0, 120);
+        const plan = hasPlan && sch.start_time ? [dueDateThisMonth(now, sch.day_of_month), sch.start_time, new Date(new Date(`1970-01-01T${sch.start_time}Z`).getTime() + 3 * 3600000).toISOString().slice(11, 16)] : null;
+        await c.query(`insert into tickets (id, type, customer_id, site_id, subject, category, priority, status, assignee_id${plan ? ', planned_on, planned_from, planned_to' : ''})
+                       values ($1, 'service', $2, $3, $4, 'other', $5, $6, $7${plan ? ', $8, $9, $10' : ''})`,
+          [tid, sch.customer_id, sch.site_id, subject, sch.priority, sch.assignee_id ? 'assigned' : 'new', sch.assignee_id, ...(plan ?? [])]);
+        const by = sch.created_by ?? sch.assignee_id ?? 'system';
+        await c.query("insert into ticket_history (ticket_id, from_status, to_status, by_user, reason) values ($1, null, 'new', $2, 'สร้างอัตโนมัติจากตารางงาน MA ประจำเดือน')", [tid, by]);
+        if (sch.assignee_id) await c.query("insert into ticket_history (ticket_id, from_status, to_status, by_user) values ($1, 'new', 'assigned', $2)", [tid, by]);
+        if (sch.description) await c.query("insert into comments (ticket_id, by_user, vis, text) values ($1, $2, 'internal', $3)", [tid, by, sch.description]);
+        await c.query('update ma_runs set ticket_id = $3 where schedule_id = $1 and ym = $2', [sch.id, ym, tid]);
+        await notify(c, [sch.assignee_id], 'งาน MA ประจำเดือน', subject, tid);
+        if (plan) await notify(c, await companyUsers(c, sch.customer_id), 'ช่างจะเข้าไปที่สถานที่ของคุณ', `${subject} — ${plan[0]} ${String(plan[1]).slice(0, 5)}–${plan[2]}`, tid);
+        await audit(c, { name: 'ระบบ', role: 'system' }, `สร้างงาน MA ประจำเดือน ${tid}`, `ตาราง #${sch.id} เดือน ${ym}`);
+        made++;
+      });
+    } catch (err) { console.error(`ma schedule #${sch.id}:`, err.message); }
+  }
+  return made;
+}
+setTimeout(() => runMaSchedules().catch(err => console.error('ma:', err.message)), 15000);
+setInterval(() => runMaSchedules().catch(err => console.error('ma:', err.message)), 3600000);
+
+// เลขแก้ไขล่าสุด: เพิ่มทุกครั้งที่มีคำสั่งแก้ไขสำเร็จ หน้าเว็บถามเลขนี้ทุก 3 วินาทีแล้วโหลดข้อมูลใหม่เมื่อเปลี่ยน (แชทเห็นข้อความใหม่โดยไม่ต้องรีเฟรช)
+// shortcut: นับในหน่วยความจำของ process เดียว และเป็นเลขรวมทุกคน — หลาย instance/ผู้ใช้มากต้องใช้ SSE/WebSocket หรือ Postgres LISTEN/NOTIFY
+let rev = 0;
 http.createServer(async (req, res) => {
+  if (req.method === 'POST') res.on('finish', () => { if (res.statusCode < 300) rev++; });
   try {
     if (req.method === 'GET' && req.url === '/api/health') {
       await pool.query('select 1');
@@ -173,10 +219,48 @@ http.createServer(async (req, res) => {
       return send(res, 200, { id: u.id, name: u.name, role: u.role },
         { 'set-cookie': cookie(token, SESSION_HOURS * 3600) });
     }
+    // ลืมรหัสผ่าน: ตอบเหมือนกันเสมอ (ไม่บอกว่าอีเมลมีในระบบ) · โทเคนใช้ครั้งเดียว หมดอายุ 30 นาที เก็บเฉพาะแฮช
+    // ต้องรัน migrations/005 ก่อน และตั้ง SMTP + APP_URL ใน .env ไม่งั้นลิงก์ไม่ถูกส่ง (ดู backend/README.md)
+    if (req.method === 'POST' && req.url === '/api/forgot') {
+      const e = String((await readJson(req)).email ?? '').trim().toLowerCase();
+      if (e.length > 100 || !EMAIL.test(e)) return send(res, 400, { error: 'invalid_email' });
+      const hit = resetHits.get(e), now = Date.now();
+      if (hit && now - hit.at < 3600000 && hit.n >= 5) return send(res, 429, { error: 'too_many_attempts' });
+      resetHits.set(e, { n: (hit && now - hit.at < 3600000 ? hit.n : 0) + 1, at: hit && now - hit.at < 3600000 ? hit.at : now });
+      try {
+        const { rows: [u] } = await pool.query('select id from users where email = $1 and removed = false', [e]);
+        if (u) {
+          const token = newToken();
+          await pool.query("insert into password_resets (token_hash, user_id, expires_at) values ($1, $2, now() + interval '30 minutes')", [hashToken(token), u.id]);
+          const sent = await sendResetMail(e, `${process.env.APP_URL || 'http://localhost:3000'}/?reset=${token}`);
+          if (!sent) console.warn('reset: ไม่ได้ส่งอีเมล (ยังไม่ตั้ง SMTP_HOST)');
+        }
+      } catch (err) { console.error('forgot:', err.message); }
+      return send(res, 200, { ok: true });
+    }
+    if (req.method === 'POST' && req.url === '/api/reset') {
+      const b = await readJson(req), token = String(b.token ?? ''), password = String(b.password ?? '');
+      if (password.length < 8 || password.length > 200) return send(res, 400, { error: 'invalid_new_password' });
+      if (!token || token.length > 100) return send(res, 400, { error: 'invalid_reset_token' });
+      let ok;
+      try { ok = await inTx(async c => {
+        const { rows: [r] } = await c.query('select user_id from password_resets where token_hash = $1 and used_at is null and expires_at > now() for update', [hashToken(token)]);
+        if (!r) return false;
+        await c.query('update password_resets set used_at = now() where token_hash = $1', [hashToken(token)]);
+        await c.query('update users set password_hash = $2 where id = $1 and removed = false', [r.user_id, await hashPassword(password)]);
+        await c.query('delete from sessions where user_id = $1', [r.user_id]);
+        await c.query("insert into audit_log (actor_name, role, action, detail) select name, role, 'รีเซ็ตรหัสผ่านทางอีเมล', null from users where id = $1", [r.user_id]);
+        return true;
+      }); } catch (err) { if (err.code === '42P01') return send(res, 503, { error: 'migration_needed' }); throw err; }
+      return ok ? send(res, 200, { ok: true }) : send(res, 400, { error: 'invalid_reset_token' });
+    }
     if (req.method === 'POST' && req.url === '/api/logout') {
       const t = sessionToken(req);
       if (t) await pool.query('delete from sessions where token_hash = $1', [hashToken(t)]);
       return send(res, 200, { ok: true }, { 'set-cookie': cookie('', 0) });
+    }
+    if (req.method === 'GET' && req.url === '/api/rev') {
+      return (await currentUser(req)) ? send(res, 200, { rev }) : send(res, 401, { error: 'not_signed_in' });
     }
     if (req.method === 'GET' && req.url === '/api/me') {
       const u = await currentUser(req);
@@ -547,6 +631,53 @@ http.createServer(async (req, res) => {
           if (pids.length) await audit(c, me, `บันทึก Work log ${id}`, `แนบรูป ${pids.length} รูป`);
         });
         return send(res, 200, { ok: true });
+      }
+    }
+    // ตารางงาน MA (หัวหน้าทีม/ผู้ดูแล): GET /api/ma-schedules · POST /api/ma-schedules (เพิ่ม) · POST /api/ma-schedules/:id (แก้ หรือ {active} อย่างเดียว = พัก/เปิด) · POST /api/ma-schedules/run (สร้างงานที่ถึงกำหนดของเดือนนี้ทันที)
+    const maUrl = req.url.match(/^\/api\/ma-schedules(?:\/(\d{1,10}|run))?$/);
+    if (maUrl && ['GET', 'POST'].includes(req.method)) {
+      const me = await currentUser(req);
+      if (!me) return send(res, 401, { error: 'not_signed_in' });
+      if (!isManager(me)) return send(res, 403, { error: 'forbidden' });
+      try {
+        if (req.method === 'GET') {
+          const { rows } = await pool.query('select s.*, (select max(ym) from ma_runs r where r.schedule_id = s.id) as last_ym, (select ticket_id from ma_runs r where r.schedule_id = s.id order by ym desc limit 1) as last_ticket from ma_schedules s order by s.active desc, s.id');
+          const now = new Date();
+          return send(res, 200, rows.map(r => ({ id: r.id, customerId: r.customer_id, siteId: r.site_id, name: r.name, description: r.description, dayOfMonth: r.day_of_month,
+            startTime: r.start_time?.slice(0, 5) ?? '', priority: r.priority, assignee: r.assignee_id, active: r.active, lastTicket: r.last_ticket, next: nextDueDate(now, r.day_of_month, r.last_ym) })));
+        }
+        if (maUrl[1] === 'run') return send(res, 200, { created: await runMaSchedules() });
+        const b = await readJson(req);
+        if (maUrl[1] && Object.keys(b).length === 1 && typeof b.active === 'boolean') {   // พัก/เปิดอย่างเดียว — ประวัติงานที่สร้างไปแล้วไม่ถูกแตะ
+          const r = await pool.query('update ma_schedules set active = $2 where id = $1', [maUrl[1], b.active]);
+          if (!r.rowCount) return send(res, 404, { error: 'not_found' });
+          await audit(pool, me, b.active ? 'เปิดตารางงาน MA' : 'พักตารางงาน MA', `#${maUrl[1]}`);
+          return send(res, 200, { ok: true });
+        }
+        const name = String(b.name ?? '').trim(), description = String(b.description ?? '').trim().slice(0, 1000), day = Number(b.dayOfMonth), priority = String(b.priority ?? 'medium');
+        const startTime = b.startTime ? String(b.startTime) : null, assignee = b.assignee ? String(b.assignee) : null, siteId = b.siteId ? String(b.siteId) : null;
+        if (!name || name.length > 120) return send(res, 400, { error: 'invalid_name' });
+        if (!Number.isInteger(day) || day < 1 || day > 31) return send(res, 400, { error: 'invalid_day' });
+        if (!PRIORITIES.includes(priority)) return send(res, 400, { error: 'invalid_priority' });
+        if (startTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime)) return send(res, 400, { error: 'invalid_time' });
+        if (assignee && !(await pool.query("select 1 from users where id = $1 and role = 'technician' and removed = false", [assignee])).rowCount) return send(res, 400, { error: 'invalid_assignee' });
+        if (maUrl[1]) {
+          const r = await pool.query('update ma_schedules set name = $2, description = $3, day_of_month = $4, start_time = $5, priority = $6, assignee_id = $7, site_id = $8, active = $9 where id = $1',
+            [maUrl[1], name, description, day, startTime, priority, assignee, siteId, b.active !== false]);
+          if (!r.rowCount) return send(res, 404, { error: 'not_found' });
+          await audit(pool, me, 'แก้ตารางงาน MA', `#${maUrl[1]} ${name}`);
+        } else {
+          const customerId = String(b.customerId ?? '');
+          if (!(await pool.query('select 1 from customers where id = $1', [customerId])).rowCount) return send(res, 400, { error: 'invalid_company' });
+          if (siteId && !(await pool.query('select 1 from sites where id = $1 and customer_id = $2', [siteId, customerId])).rowCount) return send(res, 400, { error: 'invalid_site' });
+          await pool.query('insert into ma_schedules (customer_id, site_id, name, description, day_of_month, start_time, priority, assignee_id, active, created_by) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+            [customerId, siteId, name, description, day, startTime, priority, assignee, b.active !== false, me.id]);
+          await audit(pool, me, 'เพิ่มตารางงาน MA', name);
+        }
+        return send(res, 200, { ok: true });
+      } catch (err) {
+        if (err.code === '42P01') return send(res, 503, { error: 'migration_needed' });   // ยังไม่รัน migration 005
+        throw err;
       }
     }
     // แก้ข้อมูลของตัวเอง (ทุกบทบาท): ชื่อ เบอร์ รูป ได้เลย · เปลี่ยนอีเมลเข้าระบบหรือรหัสผ่านต้องยืนยันรหัสปัจจุบัน

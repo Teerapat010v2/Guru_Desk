@@ -103,7 +103,12 @@ let folds = store.get('gitsd-folds', {});            // ส่วนที่ผ
 let dense = store.get('gitsd-dense', false);         // มุมมองรายการแบบย่อ
 
 const isOpen = tk => !['resolved', 'closed'].includes(tk.status);
-const byPriority = (a, b) => (isOpen(b) - isOpen(a)) || (PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
+// เรียงงาน: ค้างอยู่ก่อนเสมอ · ความสำคัญ (ด่วนมาก→ต่ำ) ถ้าเท่ากันให้งานที่แจ้งเก่าสุดก่อน · หรือเรียงตามวันที่แจ้ง (เก่าสุดก่อน)
+const submitted = tk => +tk.history[0].at;
+const byPriority = (a, b) => (isOpen(b) - isOpen(a)) || (PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]) || (submitted(a) - submitted(b));
+const byDate = (a, b) => (isOpen(b) - isOpen(a)) || (submitted(a) - submitted(b));
+let sortBy = store.get('gitsd-sort', 'priority');
+function setSort(k) { sortBy = k; store.set('gitsd-sort', k); renderAll(); }
 
 /* ---------- Toast ---------- */
 let toastT;
@@ -392,7 +397,7 @@ function pageHead(title, sub = '', actions = '', opt = {}) {
   return `<header class="phead">
     ${back ? `<button class="ibtn back" onclick="goBack()" aria-label="กลับไปหน้าก่อนหน้า" title="กลับไปหน้าก่อนหน้า">${ic('back', 22, 2)}</button>` : ''}
     <div class="ph-t">${opt.logo ? '<button class="logo-btn" onclick="goHome()" aria-label="กลับหน้าหลัก">' + wordmark() + '</button>' : ''}<h1>${title}</h1>${sub ? `<small>${esc(sub)}</small>` : ''}</div>
-    <div class="ph-a">${actions}${opt.tools === false ? '' : toolBtns()}<button class="ibtn bell" onclick="openNotifs()" title="การแจ้งเตือน" aria-label="การแจ้งเตือน${unread ? ` ยังไม่อ่าน ${unread}` : ''}">${ic('bell', 22, 1.7)}${unread ? `<b class="tbdg">${unread}</b>` : ''}</button></div></header>`;
+    <div class="ph-a">${actions}${toolBtns()}<button class="ibtn bell" onclick="openNotifs()" title="การแจ้งเตือน" aria-label="การแจ้งเตือน${unread ? ` ยังไม่อ่าน ${unread}` : ''}">${ic('bell', 22, 1.7)}${unread ? `<b class="tbdg">${unread}</b>` : ''}</button></div></header>`;
 }
 const tiles = (items, cls = '') => `<div class="tiles ${cls}" style="--n:${items.filter(Boolean).length}">${items.filter(Boolean).map(t => `<button class="tile" onclick="${t.fn}"><i>${ic(t.icon, 26, 1.7)}${t.badge ? `<b class="tbdg">${t.badge}</b>` : ''}</i><span>${t.label}</span>${t.sub ? `<small>${t.sub}</small>` : ''}</button>`).join('')}</div>`;
 function textTabs(items, cur, setter) {
@@ -576,7 +581,7 @@ function filteredTickets() {
   const f = filtersFor(currentUser).find(x => x[0] === filter) || filtersFor(currentUser)[0];
   const q = query.trim().toLowerCase();
   return ofType(currentUser, visibleTickets(currentUser)).filter(f[2]).filter(x => !q ||
-    [x.id, x.subject, siteLabel(x), siteOf(x)?.address, custName(x.customer), nameOf(x.assignee), x.report?.no].some(s => String(s ?? '').toLowerCase().includes(q))).sort(byPriority);
+    [x.id, x.subject, siteLabel(x), siteOf(x)?.address, custName(x.customer), nameOf(x.assignee), x.report?.no].some(s => String(s ?? '').toLowerCase().includes(q))).sort(sortBy === 'date' ? byDate : byPriority);
 }
 function toggleSearch() { showSearch = !showSearch; if (!showSearch) query = ''; renderAll(); if (showSearch) setTimeout(() => $('q')?.focus(), 30); }
 function renderTickets() {
@@ -588,6 +593,7 @@ function renderTickets() {
   + (showSearch ? `<div class="searchbox">${ic('search', 18)}<input id="q" type="search" placeholder="ค้นหาเลขงาน หัวข้อ สถานที่…" value="${esc(query)}" oninput="query=this.value;$('tlist').innerHTML=ticketListHtml()" aria-label="ค้นหางาน"></div>` : '')
   + (isStaff(u) ? typeChips(u) : '')
   + fold('tk-status', 'สถานะงาน', `<div class="tbar tbar-tk">${textTabs(filtersFor(u).map(([k, l, f]) => [k, l, vis.filter(f).length]), filter, 'setFilter')}<span class="sp"></span>${densityBtn()}</div>`, { count: filteredTickets().length })
+  + `<div class="seg sortseg" role="tablist" aria-label="เรียงงานตาม"><button role="tab" aria-selected="${sortBy === 'priority'}" class="${sortBy === 'priority' ? 'on' : ''}" onclick="setSort('priority')">เรียงตามความสำคัญ</button><button role="tab" aria-selected="${sortBy === 'date'}" class="${sortBy === 'date' ? 'on' : ''}" onclick="setSort('date')">วันที่แจ้ง (เก่าสุดก่อน)</button></div>`
   + `<div id="tlist">${ticketListHtml()}</div>`;
 }
 function ticketListHtml() {
@@ -790,16 +796,67 @@ function renderLogin() {
     <h1>${st ? 'เข้าสู่ระบบเจ้าหน้าที่' : 'เข้าสู่ระบบ'}</h1><p class="hint" style="margin:2px 0 0">${st ? 'สำหรับช่าง หัวหน้าทีม และผู้ดูแลระบบ' : 'Guru IT Service Desk · สำหรับลูกค้า'}</p>
       <label class="fl">อีเมลที่ลงทะเบียน<input id="lgId" type="email" inputmode="email" autocomplete="username" maxlength="100" placeholder="name@company.com" value="${esc(login.id)}" onkeydown="if(event.key==='Enter')$('lgPw').focus()"></label>
       <label class="fl">รหัสผ่าน<input id="lgPw" type="password" autocomplete="current-password" maxlength="200" onkeydown="if(event.key==='Enter')doLogin()"></label>
-      <p class="hint" style="margin:-6px 0 0">ลืมรหัสผ่าน? ให้ตัวแทนบริษัทหรือผู้ดูแลระบบ Guru IT ตั้งรหัสใหม่ให้</p>
+      <button type="button" class="btn link" style="margin:-6px 0 0;min-height:36px;padding:0" onclick="openForgot()">ลืมรหัสผ่าน?</button>
       <div class="err" id="lgErr" role="alert"></div>
       <button class="btn primary block" id="lgBtn" style="margin-top:16px" onclick="doLogin()">เข้าสู่ระบบ</button>
     ${st ? '' : `<div class="divider">ยังไม่มีบัญชี?</div>
-    <p class="hint" style="margin:6px 0 8px">ขอลิงก์สมัครจากตัวแทนบริษัทของคุณ หรือให้ผู้ดูแลระบบ Guru IT สร้างบัญชีให้</p>
+    <p class="hint" style="margin:6px 0 8px">สมัครด้วยรหัสบริษัท (ตัวแทนบริษัทของคุณยืนยันก่อนจึงใช้งานได้) หรือขอลิงก์สมัครจากตัวแทนบริษัท</p>
+    <button type="button" class="btn block" onclick="openJoinCode()">${ic('building', 16, 2)}สมัครด้วยรหัสบริษัท</button>
     `}
 
     <button class="btn link block" style="margin-top:22px" onclick="setLoginMode(${!st})">${st ? `${ic('user', 16, 2)}กลับไปเข้าสู่ระบบลูกค้า` : `${ic('tool', 16, 2)}เข้าสู่ระบบสำหรับช่าง / เจ้าหน้าที่`}</button>
     <div class="foot-brand">${footLogo}</div>
   </div>`;
+}
+/* ลืมรหัสผ่าน: (1) ส่งลิงก์รีเซ็ตทางอีเมล — ตอบเหมือนกันเสมอ ไม่บอกว่ามีอีเมลนี้หรือไม่ (2) ติดต่อผู้ดูแลระบบ */
+const SUPPORT = { email: 'support@guru-itsolution.com', phone: '02-114-7328' };
+function openForgot() {
+  openModal(`<div class="mh"><h3>ลืมรหัสผ่าน</h3>${xbtn()}</div>
+    <p class="hint" style="margin:0 0 6px">วิธีที่ 1 — รับลิงก์ตั้งรหัสใหม่ทางอีเมลที่ลงทะเบียนไว้</p>
+    ${emailField('fgEmail', $('lgId')?.value || '')}
+    <div class="err" id="fgErr" role="alert"></div><div class="hint" id="fgOk" role="status"></div>
+    <div class="row end"><button class="btn primary" id="fgBtn" onclick="sendForgot()">ส่งลิงก์ทางอีเมล</button></div>
+    <p class="hint" style="margin:14px 0 4px">วิธีที่ 2 — ติดต่อผู้ดูแลระบบให้ตั้งรหัสใหม่ให้</p>
+    <div class="sgroup" style="margin-top:0"><a class="srow" href="mailto:${SUPPORT.email}"><i>${ic('send', 20, 1.8)}</i><span>${SUPPORT.email}</span></a><a class="srow" href="tel:${SUPPORT.phone.replace(/-/g, '')}"><i>${ic('phone', 20, 1.8)}</i><span>${SUPPORT.phone}</span></a></div>`);
+}
+async function sendForgot() {
+  const email = normEmail($('fgEmail').value);
+  if (!validEmail(email)) { $('fgErr').textContent = 'อีเมลไม่ถูกต้อง (เช่น name@company.com)'; return; }
+  $('fgErr').textContent = ''; $('fgBtn').disabled = true;
+  try { await api('/forgot', { email }); $('fgOk').textContent = 'ถ้ามีบัญชีที่ใช้อีเมลนี้ ระบบจะส่งลิงก์ตั้งรหัสใหม่ไปให้ (ลิงก์ใช้ได้ 30 นาที) — ไม่ได้รับ? ติดต่อผู้ดูแลระบบด้านล่าง'; }
+  catch (e) { $('fgErr').textContent = e.message; }
+  $('fgBtn').disabled = false;
+}
+/* หน้าตั้งรหัสใหม่จากลิงก์ในอีเมล (?reset=โทเคน) */
+let resetToken = new URLSearchParams(location.search).get('reset');
+function renderReset() {
+  return `<div class="join"><div class="row end" style="margin:0 0 6px">${toolBtns()}</div>${wordmark()}<h1>ตั้งรหัสผ่านใหม่</h1>
+    <label class="fl">รหัสผ่านใหม่ (อย่างน้อย 8 ตัว) <em>*</em><input id="rsPw" type="password" autocomplete="new-password" maxlength="200"></label>
+    <label class="fl">พิมพ์อีกครั้ง <em>*</em><input id="rsPw2" type="password" autocomplete="new-password" maxlength="200" onkeydown="if(event.key==='Enter')doReset()"></label>
+    <div class="err" id="rsErr" role="alert"></div>
+    <button class="btn primary block" style="margin-top:16px" onclick="doReset()">บันทึกรหัสผ่านใหม่</button>
+    <button class="btn link block" style="margin-top:14px" onclick="leaveReset()">กลับหน้าเข้าสู่ระบบ</button></div>`;
+}
+function leaveReset() { resetToken = null; history.replaceState(null, '', location.pathname); renderAll(); }
+async function doReset() {
+  const pw = $('rsPw').value, err = pwErr(pw, true) || (pw !== $('rsPw2').value ? 'รหัสผ่านทั้งสองช่องไม่ตรงกัน' : '');
+  if (err) { $('rsErr').textContent = err; return; }
+  try { await api('/reset', { token: resetToken, password: pw }); toast('ตั้งรหัสผ่านใหม่แล้ว — เข้าสู่ระบบด้วยรหัสใหม่ได้เลย'); leaveReset(); }
+  catch (e) { $('rsErr').textContent = e.message; }
+}
+/* สมัครด้วยรหัสบริษัท: server ตรวจรหัสกับรายชื่อบริษัทในฐานข้อมูล ไม่ใช่รหัสที่ถูกต้องก็ไปต่อไม่ได้ · บัญชีจะเปิดใช้เมื่อตัวแทนบริษัทกดยอมรับ */
+function openJoinCode() {
+  openModal(`<div class="mh"><h3>สมัครด้วยรหัสบริษัท</h3>${xbtn()}</div>
+    <label class="fl">รหัสบริษัท <em>*</em><input id="jcCode" maxlength="40" autocomplete="off" placeholder="ขอรหัสจากตัวแทนบริษัทของคุณ" onkeydown="if(event.key==='Enter')submitJoinCode()"></label>
+    <div class="err" id="jcErr" role="alert"></div>
+    <div class="row end"><button class="btn" onclick="closeModal()">ยกเลิก</button><button class="btn primary" onclick="submitJoinCode()">ถัดไป</button></div>`);
+}
+async function submitJoinCode() {
+  const code = $('jcCode').value.trim();
+  if (!code) { $('jcErr').textContent = 'กรุณากรอกรหัสบริษัท'; return; }
+  const info = await api(`/join/${encodeURIComponent(code)}`).catch(() => null);
+  if (!info) { $('jcErr').textContent = 'ไม่พบรหัสบริษัทนี้ — ตรวจรหัสอีกครั้ง'; return; }
+  closeModal(); pickJoin(code);
 }
 async function doLogin() {
   const email = normEmail($('lgId').value), password = $('lgPw').value;
@@ -1081,7 +1138,7 @@ function openTicket(id) {
   if (sheetStack.at(-1)?.id !== id) { tkTab = 'chat'; cmtVis = 'public'; cmtDraft = ''; clearPending('cmt'); clearPending('wl'); }
   pushSheet({ t: 'ticket', id });
 }
-function openPartner(id) { pushSheet({ t: 'partner', id }); }
+function openPartner(id) { pushSheet({ t: 'partner', id }); if (canManagePartners(currentUser) && customers[id]?.contract === 'ma') loadMaSchedules().then(() => sheetStack.at(-1)?.id === id && renderSheet()); }
 function backSheet() { stopVoice(); sheetStack.pop(); if (sheetStack.length) renderSheet(); else hideSheet(); syncHistory(); }
 function closeSheet() { stopVoice(); sheetStack = []; hideSheet(); syncHistory(); }
 function hideSheet() { $('sheet').classList.remove('open'); $('sheet').setAttribute('aria-hidden', 'true'); $('sheetBg').classList.remove('on'); }
@@ -1784,6 +1841,45 @@ function renderPartners() {
   + `<div class="tbar">${textTabs([['all', 'ทั้งหมด', all.length], ...Object.entries(CONTRACT_LABEL).map(([k, l]) => [k, l.replace(/\s*\(.*\)/, ''), all.filter(c => c.contract === k).length])], pfilter, 'setPFilter')}<span class="sp"></span>${densityBtn()}</div>
   <div id="plist">${partnerListHtml()}</div>`;
 }
+/* ตารางงาน MA ประจำเดือน (หัวหน้าทีม/ผู้ดูแล): ตั้งวันที่ของเดือน ผู้รับผิดชอบ แล้ว server สร้างงานให้เองทุกเดือน — เดือนที่ไม่มีวันนั้นใช้วันสุดท้ายของเดือน */
+let maSchedules = [], maErr = '';
+async function loadMaSchedules() { try { maSchedules = await api('/ma-schedules'); maErr = ''; } catch (e) { maSchedules = []; maErr = e.message; } }
+function maPane(cid) {
+  const list = maSchedules.filter(x => x.customerId === cid), c = customers[cid];
+  const row = x => `<div class="card ma-sch ${x.active ? '' : 'off'}"><div class="badges"><b>${esc(x.name)}</b><span class="sp"></span><span class="pill ${x.active ? 'p-in_progress' : 'p-pending'}">${x.active ? 'ใช้งาน' : 'พักอยู่'}</span></div>
+    <dl class="facts"><dt>รอบ</dt><dd>ทุกวันที่ ${x.dayOfMonth}${x.startTime ? ' · ' + x.startTime : ''}<small class="muted"> (เดือนสั้นใช้วันสุดท้าย)</small></dd>
+      <dt>ผู้รับผิดชอบ</dt><dd>${x.assignee ? esc(nameOf(x.assignee)) : '<span class="prio-urgent">ยังไม่กำหนด</span>'}</dd>
+      <dt>สถานที่</dt><dd>${esc(c.sites.find(s => s.id === x.siteId)?.name || 'ทุกสถานที่')}</dd>
+      <dt>ครั้งถัดไป</dt><dd>${x.active ? fmtD(new Date(x.next + 'T00:00')) : '-'}</dd></dl>
+    <div class="row"><button class="btn sm" onclick="openMaForm('${cid}', ${x.id})">${ic('pen', 15, 2)}แก้ไข</button><button class="btn sm" onclick="toggleMa(${x.id}, ${!x.active})">${x.active ? 'พัก' : 'เปิดใช้งาน'}</button>${x.lastTicket ? `<button class="btn sm" onclick="openTicket('${x.lastTicket}')">งานล่าสุด</button>` : ''}</div></div>`;
+  return (maErr ? `<div class="locked">${ic('alert', 18)}<div>${esc(maErr)}</div></div>` : '') + (list.map(row).join('') || empty('ยังไม่มีตารางงาน MA — เพิ่มเพื่อให้ระบบสร้างงานให้ทุกเดือน', 'clock'))
+    + `<div class="row"><button class="btn sm" onclick="openMaForm('${cid}')">${ic('plus', 15, 2)}เพิ่มตารางงาน MA</button><button class="btn sm" onclick="runMaNow()" title="สร้างงานของเดือนนี้ที่ถึงกำหนดแล้วทันที (ไม่สร้างซ้ำ)">สร้างที่ถึงกำหนดตอนนี้</button></div>`;
+}
+function openMaForm(cid, id) {
+  const c = customers[cid], x = id ? maSchedules.find(m => m.id === id) : null;
+  const techs = Object.values(users).filter(t => t.role === 'technician' && !t.removed);
+  openModal(`<div class="mh"><h3>${x ? 'แก้ไขตารางงาน MA' : 'เพิ่มตารางงาน MA'}</h3>${xbtn()}</div>
+    <p class="hint" style="margin:0">${esc(c.name)}</p>
+    <label class="fl">ชื่องาน <em>*</em><input id="maName" maxlength="120" value="${esc(x?.name || '')}" placeholder="เช่น ตรวจเช็กเครือข่ายและเครื่องผู้ใช้"></label>
+    <label class="fl">รายละเอียด (ช่างเห็น)<textarea id="maDesc" rows="2" maxlength="1000">${esc(x?.description || '')}</textarea></label>
+    <div class="two"><label class="fl">วันที่ของเดือน <em>*</em><select id="maDay">${Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}" ${(x?.dayOfMonth || 1) === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}</select></label>
+      <label class="fl">เวลาเริ่ม<input id="maTime" type="time" value="${x?.startTime || ''}"></label></div>
+    <label class="fl">สถานที่<select id="maSite"><option value="">ทุกสถานที่</option>${c.sites.map(s => `<option value="${s.id}" ${x?.siteId === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></label>
+    <label class="fl">ผู้รับผิดชอบ (ช่าง)<select id="maWho"><option value="">ยังไม่กำหนด</option>${techs.map(t => `<option value="${t.id}" ${x?.assignee === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></label>
+    <label class="fl">ความสำคัญ<select id="maPri">${Object.entries(PRIORITY_LABEL).map(([k, l]) => `<option value="${k}" ${(x?.priority || 'medium') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <label class="fl" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="maOn" style="width:20px;height:20px;min-height:0" ${x?.active !== false ? 'checked' : ''}>เปิดใช้งาน (ปิด = พัก ไม่สร้างงานใหม่)</label>
+    <div class="err" id="maErrBox" role="alert"></div>
+    <div class="row end"><button class="btn" onclick="closeModal()">ยกเลิก</button><button class="btn primary" onclick="saveMa('${cid}', ${x ? x.id : 'null'})">บันทึก</button></div>`);
+}
+async function saveMa(cid, id) {
+  const body = { customerId: cid, name: $('maName').value.trim(), description: $('maDesc').value.trim(), dayOfMonth: +$('maDay').value, startTime: $('maTime').value, siteId: $('maSite').value, assignee: $('maWho').value, priority: $('maPri').value, active: $('maOn').checked };
+  if (!body.name) { $('maErrBox').textContent = 'กรุณากรอกชื่องาน'; return; }
+  try { await api(id ? `/ma-schedules/${id}` : '/ma-schedules', body); } catch (e) { $('maErrBox').textContent = e.message; return; }
+  await loadMaSchedules(); closeModal(); toast('บันทึกตารางงาน MA แล้ว'); renderSheet();
+}
+async function toggleMa(id, active) { try { await api(`/ma-schedules/${id}`, { active }); } catch (e) { return toast(e.message); } await loadMaSchedules(); toast(active ? 'เปิดใช้งานแล้ว' : 'พักตารางงานแล้ว'); renderSheet(); }
+async function runMaNow() { try { const d = await api('/ma-schedules/run', {}); await loadState(); await loadMaSchedules(); toast(d.created ? `สร้างงาน MA ${d.created} งานแล้ว` : 'ไม่มีงานที่ถึงกำหนดและยังไม่ได้สร้าง'); renderAll(); } catch (e) { toast(e.message); } }
+
 /* งาน MA ประจำเดือน: หัวหน้าทีมกดสร้างงานให้ทุกสถานที่ของลูกค้า แล้ววางวัน+มอบหมายช่างต่อ (ลูกค้าได้แจ้งเตือนเมื่อวางวัน) */
 async function createMaJobs(id) {
   const c = customers[id]; if (!c || !canManagePartners(currentUser)) return;
@@ -1820,7 +1916,7 @@ function partnerSheet(id) {
       <div class="kpi"><b>${avg ? `★ ${num(avg)}` : '–'}</b><span>ความพึงพอใจ</span></div>
     </div>
     <button class="mcard" onclick="rpt.partner='${id}';rpt.view='summary';goTab('reports')"><i>${ic('chart', 22)}</i><div><b>รายงานผลงานของพาร์ทเนอร์นี้</b><small>สรุปงานที่ทำ พร้อมพิมพ์ส่งลูกค้า</small></div>${ic('right', 18, 2)}</button>
-    ${paneTabs(id, [{ k: 'sites', l: 'สถานที่', n: c.sites.length, body: (siteCards || empty('ยังไม่มีสถานที่', 'pin')) + (manage ? `<button class="btn sm" onclick="openSiteForm('${id}')">${ic('plus', 15, 2)}เพิ่มสถานที่</button>` : '') }, { k: 'jobs', l: 'งานล่าสุด', n: tks.length, body: tks.length ? list(tks.slice(0, 6)) : empty('ยังไม่มีงาน', 'list') }])}`];
+    ${paneTabs(id, [{ k: 'sites', l: 'สถานที่', n: c.sites.length, body: (siteCards || empty('ยังไม่มีสถานที่', 'pin')) + (manage ? `<button class="btn sm" onclick="openSiteForm('${id}')">${ic('plus', 15, 2)}เพิ่มสถานที่</button>` : '') }, { k: 'jobs', l: 'งานล่าสุด', n: tks.length, body: tks.length ? list(tks.slice(0, 6)) : empty('ยังไม่มีงาน', 'list') }, manage && c.contract === 'ma' && { k: 'ma', l: 'MA ประจำเดือน', n: maSchedules.filter(x => x.customerId === id).length, body: maPane(id) }])}`];
 }
 function openPartnerForm(id) {
   if (!canManagePartners(currentUser)) return;
@@ -2042,7 +2138,7 @@ function renderAll() {
   persist();
   const u = currentUser;
   $('tabbar').hidden = !!joinCid || !u;
-  if (joinCid || !u) { $('shell').className = 'shell joining'; $('fab').hidden = true; $('screen').innerHTML = `<div class="page">${joinCid ? renderJoin() : renderLogin()}</div>`; return; }
+  if (joinCid || !u) { $('shell').className = 'shell joining'; $('fab').hidden = true; $('screen').innerHTML = `<div class="page">${resetToken ? renderReset() : joinCid ? renderJoin() : renderLogin()}</div>`; return; }
   $('shell').className = `shell role-${u.role}`;
   renderTabbar();
   const home = { customer: homeCustomer, technician: homeTech, team_leader: homeLead, admin: homeAdmin }[u.role];
@@ -2059,6 +2155,7 @@ applyTheme();
 // เปิดหน้า: ถ้ายังมี session ที่ server ให้เข้าใช้งานต่อเลย ไม่งั้นแสดงหน้าเข้าสู่ระบบ
 loadState().catch(() => {}).finally(() => {
   const jc = new URLSearchParams(location.search).get('join');
+  if (resetToken && !currentUser) return renderAll();   // ลิงก์รีเซ็ตรหัสผ่านจากอีเมล
   if (jc && !currentUser) return pickJoin(jc);   // ลิงก์ชวนพนักงาน
   renderAll(); if (currentUser) setTimeout(deliverNotifs, 600);
 });

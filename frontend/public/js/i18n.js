@@ -357,6 +357,30 @@ const EN = {
   '· แผนที่จำลอง': '· simplified map', 'กำหนด': 'due', 'ทำงานที่': 'Works at',
   'ยังไม่เข้าสู่ระบบ': 'Not signed in', 'กำลังตรวจสอบและแก้ไข': 'Checking and fixing',
   'จะเริ่มดำเนินการเร็ว ๆ นี้': 'Starting shortly', 'รอหัวหน้าทีมมอบหมายช่าง': 'Waiting for a team leader to assign a technician',
+  /* รอบปรับปรุง: เรียงงาน · ลืมรหัสผ่าน · สมัครด้วยรหัสบริษัท · ตารางงาน MA ประจำเดือน */
+  'เรียงตามความสำคัญ': 'Sort by priority', 'วันที่แจ้ง (เก่าสุดก่อน)': 'Submitted date (oldest first)', 'เรียงงานตาม': 'Sort jobs by',
+  'ลืมรหัสผ่าน?': 'Forgot password?', 'ลืมรหัสผ่าน': 'Forgot password', 'ส่งลิงก์ทางอีเมล': 'Email me a reset link',
+  'วิธีที่ 1 — รับลิงก์ตั้งรหัสใหม่ทางอีเมลที่ลงทะเบียนไว้': 'Option 1 — get a reset link by email',
+  'วิธีที่ 2 — ติดต่อผู้ดูแลระบบให้ตั้งรหัสใหม่ให้': 'Option 2 — contact the administrator to reset it for you',
+  'ถ้ามีบัญชีที่ใช้อีเมลนี้ ระบบจะส่งลิงก์ตั้งรหัสใหม่ไปให้ (ลิงก์ใช้ได้ 30 นาที) — ไม่ได้รับ? ติดต่อผู้ดูแลระบบด้านล่าง': 'If an account uses this email, we will send a reset link (valid for 30 minutes). Not received? Contact the administrator below.',
+  'ตั้งรหัสผ่านใหม่': 'Set a new password', 'รหัสผ่านใหม่ (อย่างน้อย 8 ตัว)': 'New password (at least 8 characters)', 'พิมพ์อีกครั้ง': 'Type it again',
+  'บันทึกรหัสผ่านใหม่': 'Save new password', 'กลับหน้าเข้าสู่ระบบ': 'Back to sign in', 'รหัสผ่านทั้งสองช่องไม่ตรงกัน': 'The two passwords do not match',
+  'ตั้งรหัสผ่านใหม่แล้ว — เข้าสู่ระบบด้วยรหัสใหม่ได้เลย': 'Password updated — sign in with the new password',
+  'ลิงก์รีเซ็ตไม่ถูกต้องหรือหมดอายุ/ใช้ไปแล้ว — ขอลิงก์ใหม่จากหน้าเข้าสู่ระบบ': 'The reset link is invalid, expired or already used — request a new one from the sign-in page',
+  'สมัครด้วยรหัสบริษัท': 'Register with company ID', 'รหัสบริษัท': 'Company ID', 'ขอรหัสจากตัวแทนบริษัทของคุณ': 'Ask your company representative for the ID',
+  'ถัดไป': 'Next', 'กรุณากรอกรหัสบริษัท': 'Please enter the company ID', 'ไม่พบรหัสบริษัทนี้ — ตรวจรหัสอีกครั้ง': 'Company ID not found — please check it',
+  'สมัครด้วยรหัสบริษัท (ตัวแทนบริษัทของคุณยืนยันก่อนจึงใช้งานได้) หรือขอลิงก์สมัครจากตัวแทนบริษัท': 'Register with your company ID (your company representative must approve before you can sign in), or ask your representative for an invite link',
+  'ตารางงาน MA': 'MA schedules', 'MA ประจำเดือน': 'Monthly MA', 'เพิ่มตารางงาน MA': 'Add MA schedule', 'แก้ไขตารางงาน MA': 'Edit MA schedule',
+  'ชื่องาน': 'Task name', 'รายละเอียด (ช่างเห็น)': 'Description (visible to technicians)', 'วันที่ของเดือน': 'Day of month', 'เวลาเริ่ม': 'Start time',
+  'ทุกสถานที่': 'All sites', 'ผู้รับผิดชอบ (ช่าง)': 'Responsible technician', 'ยังไม่กำหนด': 'Not assigned', 'ความสำคัญ': 'Priority',
+  'เปิดใช้งาน (ปิด = พัก ไม่สร้างงานใหม่)': 'Active (off = paused, no new jobs are created)', 'ใช้งาน': 'Active', 'พักอยู่': 'Paused', 'พัก': 'Pause', 'เปิดใช้งาน': 'Resume',
+  'รอบ': 'Schedule', 'ครั้งถัดไป': 'Next run', 'งานล่าสุด': 'Latest job', 'ผู้รับผิดชอบ': 'Responsible', 'สถานที่': 'Site',
+  '(เดือนสั้นใช้วันสุดท้าย)': '(short months use the last day)', 'สร้างที่ถึงกำหนดตอนนี้': 'Create due jobs now',
+  'ยังไม่มีตารางงาน MA — เพิ่มเพื่อให้ระบบสร้างงานให้ทุกเดือน': 'No MA schedules yet — add one so jobs are created every month',
+  'บันทึกตารางงาน MA แล้ว': 'MA schedule saved', 'พักตารางงานแล้ว': 'Schedule paused', 'เปิดใช้งานแล้ว': 'Schedule resumed', 'กรุณากรอกชื่องาน': 'Please enter a task name',
+  'วันที่ของเดือนต้องเป็น 1–31': 'Day of month must be 1–31', 'ยังไม่ได้รัน migration 005 ในฐานข้อมูล (ดู TODO.md)': 'Database migration 005 has not been run yet (see TODO.md)',
+  'ไม่มีงานที่ถึงกำหนดและยังไม่ได้สร้าง': 'No due jobs left to create',
+
 };
 
 /* คีย์ยาวก่อน เพื่อไม่ให้คำสั้นไปตัดคำยาว */

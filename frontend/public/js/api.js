@@ -34,6 +34,9 @@ const API_ERR = {
   too_many_attempts: 'ใส่รหัสผิดหลายครั้ง — ติดต่อผู้ดูแลระบบเพื่อรีเซ็ต แล้วลองใหม่',
   no_recipient: 'ยังไม่มีอีเมลของหัวหน้าพนักงานหรือบริษัทนี้ — เพิ่มอีเมลที่หน้าพาร์ทเนอร์ก่อน',
   mail_failed: 'ส่งอีเมลไม่สำเร็จ ลองใหม่ภายหลัง หรือตรวจการตั้งค่า SMTP',
+  invalid_reset_token: 'ลิงก์รีเซ็ตไม่ถูกต้องหรือหมดอายุ/ใช้ไปแล้ว — ขอลิงก์ใหม่จากหน้าเข้าสู่ระบบ',
+  invalid_day: 'วันที่ของเดือนต้องเป็น 1–31',
+  migration_needed: 'ยังไม่ได้รัน migration 005 ในฐานข้อมูล (ดู TODO.md)',
   wrong_password:'รหัสผ่านปัจจุบันไม่ถูกต้อง',
   invalid_photo:'รูปไม่ถูกต้องหรือใหญ่เกินไป',
   invalid_date: 'วันที่ไม่ถูกต้อง',
@@ -104,3 +107,21 @@ async function call(path, body, errId) {
     return null;
   }
 }
+
+/* ข้อมูลใหม่โดยไม่ต้องรีเฟรช (แชท สถานะงาน): ถามเลขแก้ไขล่าสุดของ server ทุก 3 วินาทีขณะเปิดหน้านี้อยู่ เปลี่ยนเมื่อไรก็โหลดข้อมูลใหม่
+   ถ้ากำลังพิมพ์อยู่จะไม่วาดหน้าทับ (ข้อความที่พิมพ์ค้างไม่หาย) แล้ววาดใหม่ตอนออกจากช่องพิมพ์ */
+let syncRev = null, syncPending = false;
+async function syncTick() {
+  if (!currentUser || document.hidden) { if (!currentUser) syncRev = null; return; }
+  try {
+    const { rev } = await api('/rev');
+    if (syncRev === null) { syncRev = rev; return; }
+    if (rev === syncRev) return;
+    syncRev = rev;
+    await loadState();
+    const a = document.activeElement;
+    if (a?.matches?.('input,textarea,select') && (a.value || a.type === 'password')) syncPending = true; else renderAll();
+  } catch { /* ออฟไลน์/หมดอายุ: รอบหน้าลองใหม่ */ }
+}
+setInterval(syncTick, 3000);
+document.addEventListener('focusout', () => { if (syncPending) { syncPending = false; setTimeout(renderAll, 0); } });
