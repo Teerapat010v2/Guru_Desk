@@ -1221,7 +1221,7 @@ function reportCard(tk) {
   const buttons = [];
   if (canSignOff(u, tk)) buttons.push(`<button class="btn primary" onclick="openSignOff('${tk.id}')">${ic('pen', 16, 2)}${cust ? 'ตรวจสอบและเซ็นรับงาน' : 'ให้ลูกค้าเซ็นบนเครื่องนี้'}</button>`);
   buttons.push(`<button class="btn" onclick="openReport('${tk.id}')">${ic('doc', 16, 2)}ดูใบรายงาน</button>`);
-  if (isStaff(u)) buttons.push(`<button class="btn" onclick="emailWithPdf('${tk.id}')">${ic('send', 16, 2)}ส่งอีเมลพร้อม PDF</button>`);
+  if (isStaff(u)) buttons.push(`<button class="btn" onclick="sendConfirmMail('${tk.id}')">${ic('send', 16, 2)}ส่งอีเมลยืนยัน</button>`);
   if (canRejectWork(u, tk)) buttons.push(`<button class="btn ghost-red" onclick="openReject('${tk.id}')">${ic('undo', 16, 2)}ยังไม่เรียบร้อย</button>`);
   return fold('d-report', `ใบรายงาน <span class="mono muted">${r.no}</span>`, `<div class="card ${s === 'waiting' && cust ? 'attn' : ''}">
     <div class="badges">${signBadge(tk)}</div>
@@ -1775,19 +1775,40 @@ async function reportPdf(tk) {
 }
 const b64 = u8 => { let b = ''; for (let i = 0; i < u8.length; i += 0x8000) b += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(b); };
 const wrap76 = t => t.replace(/.{76}/g, '$&\r\n');
-async function emailWithPdf(id) {
+/* ปุ่มเดียว "ส่งอีเมลยืนยัน" แนบ PDF เสมอ — ระบบเลือกทางเอง:
+   มือถือ → เมนูแชร์ของเครื่อง (เลือก Outlook/Gmail ได้ พร้อมไฟล์ PDF) · คอม → ไฟล์ร่าง .eml เปิดในแอป Outlook · ถ้าเปิดแอปไม่ได้ กด "ใช้ Outlook เว็บ" (จำไว้ที่เครื่องนั้น)
+   shortcut: ตรวจไม่ได้ว่าแอปเปิดสำเร็จหรือไม่ จึงให้ผู้ใช้บอกเอง — Outlook เว็บแนบไฟล์ให้อัตโนมัติไม่ได้ (ดาวน์โหลด PDF ให้แล้วช่างลากแนบ) */
+const isPhone = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const mailMode = () => { try { return localStorage.getItem('mailMode'); } catch { return null; } };
+const saveBlob = (blob, name) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); };
+function buildEml(d, name, pdf) {
+  const bd = `=_guru_${Date.now().toString(36)}`, utf8 = t => b64(new TextEncoder().encode(t));
+  return ['X-Unsent: 1', `To: ${d.to}`, `Subject: =?UTF-8?B?${utf8(d.subject)}?=`, 'MIME-Version: 1.0', `Content-Type: multipart/mixed; boundary="${bd}"`, '',
+    `--${bd}`, 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', wrap76(utf8(d.body.replace('แนบใบรายงานมาพร้อมอีเมลนี้', 'ใบรายงานแนบมาพร้อมอีเมลนี้ (ไฟล์ PDF)'))),
+    `--${bd}`, `Content-Type: application/pdf; name="${name}"`, 'Content-Transfer-Encoding: base64', `Content-Disposition: attachment; filename="${name}"`, '', wrap76(b64(new Uint8Array(pdf))), `--${bd}--`, ''].join('\r\n');
+}
+async function sendConfirmMail(id) {
   const tk = tickets.find(x => x.id === id), d = mailDraft(id);
   if (!d) return;
-  toast('กำลังสร้าง PDF…');
+  toast('กำลังเตรียมอีเมลและ PDF…');
   try {
-    const name = `${tk.report.no}.pdf`, bd = `=_guru_${Date.now().toString(36)}`;
-    const eml = ['X-Unsent: 1', `To: ${d.to}`, `Subject: =?UTF-8?B?${b64(new TextEncoder().encode(d.subject))}?=`, 'MIME-Version: 1.0', `Content-Type: multipart/mixed; boundary="${bd}"`, '',
-      `--${bd}`, 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', wrap76(b64(new TextEncoder().encode(d.body.replace('แนบใบรายงานมาพร้อมอีเมลนี้', 'ใบรายงานแนบมาพร้อมอีเมลนี้ (ไฟล์ PDF)')))),
-      `--${bd}`, `Content-Type: application/pdf; name="${name}"`, 'Content-Transfer-Encoding: base64', `Content-Disposition: attachment; filename="${name}"`, '', wrap76(b64(new Uint8Array(await reportPdf(tk)))), `--${bd}--`, ''].join('\r\n');
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([eml], { type: 'message/rfc822' })); a.download = `${tk.report.no}.eml`; document.body.appendChild(a); a.click(); a.remove();
-    toast('ดาวน์โหลดร่างอีเมลแล้ว — เปิดไฟล์ .eml เพื่อส่งจากอีเมลของคุณ');
+    const pdf = await reportPdf(tk), name = `${tk.report.no}.pdf`;
+    if (isPhone()) {
+      const file = new File([pdf], name, { type: 'application/pdf' });
+      if (navigator.canShare?.({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: d.subject, text: `${d.body}\n\nถึง: ${d.to}` }); } catch (e) { if (e.name !== 'AbortError') throw e; }
+        return;
+      }
+      saveBlob(new Blob([pdf], { type: 'application/pdf' }), name); mailtoReport(id); toast('แนบไฟล์ PDF ที่ดาวน์โหลดในอีเมล'); return;
+    }
+    if (mailMode() === 'web') { saveBlob(new Blob([pdf], { type: 'application/pdf' }), name); outlookWebReport(id); toast('ลากไฟล์ PDF ที่ดาวน์โหลดแนบในอีเมล'); return; }
+    saveBlob(new Blob([buildEml(d, name, pdf)], { type: 'message/rfc822' }), `${tk.report.no}.eml`);
+    openModal(`<div class="mh"><h3>ส่งอีเมลยืนยัน</h3>${xbtn()}</div>
+      <p class="hint">ดาวน์โหลดร่างอีเมลแล้ว (${esc(tk.report.no)}.eml) — เปิดไฟล์นี้ Outlook จะเปิดร่างที่กรอกผู้รับและแนบ PDF ให้แล้ว กดส่งได้เลย</p>
+      <div class="row end"><button class="btn" onclick="useOutlookWeb('${id}')">เปิดไม่ได้ ใช้ Outlook เว็บ</button><button class="btn primary" onclick="closeModal()">เรียบร้อย</button></div>`);
   } catch (e) { toast(e.message); }
 }
+function useOutlookWeb(id) { try { localStorage.setItem('mailMode', 'web'); } catch { /* จำไม่ได้ก็ใช้รอบนี้รอบเดียว */ } closeModal(); sendConfirmMail(id); }
 function mailDraft(id) {
   const tk = tickets.find(x => x.id === id), r = tk?.report;
   if (!r) return null;
@@ -1801,7 +1822,7 @@ function mailDraft(id) {
 const mailQuery = d => `to=${encodeURIComponent(d.to)}&subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`;
 function mailtoReport(id) { const d = mailDraft(id); if (d) location.href = `mailto:${d.to}?${mailQuery(d).replace(/^to=[^&]*&/, '')}`; }
 function outlookWebReport(id) { const d = mailDraft(id); if (d) window.open(`https://outlook.office.com/mail/deeplink/compose?${mailQuery(d)}`, '_blank', 'noopener'); }
-const reportMailBtns = id => isStaff(currentUser) ? `<button class="btn sm primary" onclick="emailWithPdf('${id}')">${ic('send', 15, 2)}อีเมล + PDF</button><button class="btn sm" onclick="mailtoReport('${id}')">แอปอีเมล</button><button class="btn sm" onclick="outlookWebReport('${id}')">Outlook เว็บ</button>` : '';
+const reportMailBtns = id => isStaff(currentUser) ? `<button class="btn sm primary" onclick="sendConfirmMail('${id}')">${ic('send', 15, 2)}ส่งอีเมลยืนยัน</button>` : '';
 /* ใบรายงานงาน MA: รูปแบบ Customer Service Report ของบริษัท จบใน A4 หน้าเดียว (รูปประกอบถ้ามีไปต่อหน้าสอง) */
 const box = ok => (ok ? '&#9745;' : '&#9744;');
 function csrDoc(tk) {
