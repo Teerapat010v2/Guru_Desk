@@ -1314,11 +1314,11 @@ function suggestHours(tk) {
 /* เช็กลิสต์งาน MA ตามใบ Customer Service Report: อุปกรณ์ระบบ + เครื่องผู้ใช้ — เฉพาะลูกค้าสัญญา MA */
 const MA_HW = ['Firewall', 'Server', 'Switch', 'NAS', 'UPS', 'CCTV', 'Printers', 'Router ISP', 'Wireless AP'];
 const isMA = isMAJob;
-const maForm = tk => !isMA(tk) ? '' : `<div class="fl">เช็กลิสต์ MA — อุปกรณ์ระบบ</div>
+const maForm = tk => !isMA(tk) ? '' : `<div class="rs-b1"><div class="fl">เช็กลิสต์ MA — อุปกรณ์ระบบ</div>
   <div class="card ma-box">${MA_HW.map((h, i) => `<div class="ma-row"><label><input type="checkbox" id="mhw${i}"> ${h}</label><input id="mhn${i}" placeholder="หมายเหตุ" maxlength="200" aria-label="หมายเหตุ ${h}"></div>`).join('')}</div>
-  <div class="fl">เครื่องผู้ใช้ (ไม่ต้องกรอกทุกช่อง)</div>
+  </div><div class="rs-b2"><div class="fl">เครื่องผู้ใช้ (ไม่ต้องกรอกทุกช่อง)</div>
   <div class="card ma-box">${[0, 1, 2, 3, 4].map(i => `<div class="ma-row"><input id="mpn${i}" placeholder="ชื่อผู้ใช้" maxlength="60" aria-label="ชื่อผู้ใช้ ${i + 1}"><span class="ma-chk"><label><input type="checkbox" id="mpd${i}">ดิสก์</label><label><input type="checkbox" id="mpw${i}">อัปเดต</label><label><input type="checkbox" id="mpv${i}">ไวรัส</label></span></div>`).join('')}</div>
-  <input id="mNotes" placeholder="หมายเหตุอื่นๆ (เช่น ตั้งค่า WiFi, Shared Calendar)" maxlength="500" aria-label="หมายเหตุอื่นๆ">`;
+  <input id="mNotes" placeholder="หมายเหตุอื่นๆ (เช่น ตั้งค่า WiFi, Shared Calendar)" maxlength="500" aria-label="หมายเหตุอื่นๆ"></div>`;
 const maBox = tk => !isMA(tk) ? null : {
   hw: MA_HW.map((h, i) => ({ item: h, ok: $('mhw' + i).checked, note: $('mhn' + i).value.trim() })),
   pc: [0, 1, 2, 3, 4].map(i => ({ name: $('mpn' + i).value.trim(), disk: $('mpd' + i).checked, win: $('mpw' + i).checked, virus: $('mpv' + i).checked, note: '' })).filter(x => x.name),
@@ -1335,6 +1335,7 @@ function openResolve(id) {
   const onsite = u.role === 'technician';
   clearPending('report');
   openModal(`<div class="mh"><h3>ทำเสร็จ — ออกใบรายงาน</h3>${xbtn()}</div>
+    <div class="rs-grid"><div class="rs-a">
     <p class="hint" style="margin:0 0 4px">${tk.id} · ${esc(tk.subject)}<br>ลูกค้าจะเห็นใบรายงานนี้และใช้เซ็นรับงาน — เขียนให้ลูกค้าเข้าใจ</p>
     <label class="fl" for="rSum">สรุปงานที่ทำ <em>*</em></label>
     ${voiceBox('rSum', 'rows="2" placeholder="เช่น เปลี่ยนลูกกลิ้งดึงกระดาษ ทดสอบพิมพ์ 20 แผ่นปกติ"')}
@@ -1346,7 +1347,7 @@ function openResolve(id) {
       ${onsite ? `<label class="opt"><input type="radio" name="nextSign" value="now" checked><div><b>ให้ลูกค้าเซ็นบนเครื่องนี้ทันที</b><small>เหมาะเมื่ออยู่หน้างานกับลูกค้า</small></div></label>` : ''}
       <label class="opt"><input type="radio" name="nextSign" value="app" ${onsite ? '' : 'checked'}><div><b>ส่งให้ลูกค้าเซ็นในแอป</b><small>ลูกค้าจะเห็น "รอคุณเซ็นรับ"</small></div></label>
     </div></div>
-    ${maForm(tk)}
+    </div>${isMA(tk) ? `<div class="rs-b">${maForm(tk)}</div>` : ''}</div>
     <div class="err" id="rErr" role="alert"></div>
     <div class="row end"><button class="btn" onclick="closeModal()">ยกเลิก</button><button class="btn primary" onclick="submitResolve('${id}')">${ic('doc', 16, 2)}ออกใบรายงาน</button></div>`);
   focusLater('rSum');

@@ -1170,3 +1170,13 @@ textarea,input,select{border-radius:14px}
 /* ปุ่มหมวดงานสูงเท่ากันทั้งแถว แม้ชื่อบางอันขึ้นสองบรรทัด */
 .catpick label{display:flex}
 .catpick label span{flex:1;min-width:0}
+
+/* ออกใบรายงาน (คอม): ฟอร์มซ้าย เช็กลิสต์ MA ขวา เห็นครบในหน้าต่างเดียว ไม่ต้องเลื่อน · มือถือเรียงลงเหมือนเดิม */
+@media (min-width:1000px){
+  #modalCard:has(.rs-b){width:min(1240px,calc(100vw - 48px));max-height:96vh;padding-top:18px;padding-bottom:18px}
+  .rs-grid:has(.rs-b){display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.1fr);gap:0 24px;align-items:start}
+  .rs-b{display:contents}
+  .rs-b1>.fl:first-child,.rs-b2>.fl:first-child{margin-top:0}
+  #modalCard:has(.rs-b) .ma-box{padding:6px 10px;gap:4px;margin-bottom:6px}
+  #modalCard:has(.rs-b) .ma-row input:not([type=checkbox]){min-height:32px}
+}
