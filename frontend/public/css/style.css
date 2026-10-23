@@ -1221,3 +1221,6 @@ textarea,input,select{border-radius:14px}
 .csr-sn{text-align:center;font-size:0.75rem;font-style:italic;margin-top:2px}
 @media print{.csr{font-size:9.5pt}.csr-t td,.csr-t th{height:6mm;padding:1px 5px}.csr-sign{margin-top:8mm}}
 @media (max-width:599px){.csr{font-size:0.6875rem}.csr-t td,.csr-t th{padding:2px 3px}.csr-top img{width:110px}.csr-sign{gap:16px}}
+
+/* รหัสผูก LINE */
+.line-code{font-size:1.75rem;font-weight:700;letter-spacing:.3em;text-align:center;margin:8px 0;color:var(--primary)}

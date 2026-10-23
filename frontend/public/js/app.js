@@ -1141,9 +1141,22 @@ function openProfile() {
     <label class="fl">เบอร์โทร<input id="mPhone" type="tel" inputmode="tel" maxlength="15" placeholder="เช่น 081-234-5678" value="${esc(u.phone || '')}"></label>
     ${emailField('mEmail', u.email, `oninput="$('mCur').style.display = normEmail(this.value) === currentUser.email ? 'none' : ''"`)}
     <label class="fl" id="mCur" style="display:none">รหัสผ่านปัจจุบัน (ยืนยันการเปลี่ยนอีเมล) <em>*</em><input id="mCurPw" type="password" autocomplete="current-password" maxlength="200"></label>
+    <div class="fl">LINE (รับแจ้งเตือนงานใน LINE)<div id="lineBox">${lineBox()}</div></div>
     <div class="err" id="mErr" role="alert"></div>
     <div class="row end"><button class="btn" onclick="closeModal()">ยกเลิก</button><button class="btn primary" onclick="saveProfile()">บันทึก</button></div>`);
 }
+/* ผูก LINE: ขอรหัส 6 หลักจากเซิร์ฟเวอร์ แล้วพิมพ์รหัสนั้นในแชท LINE Official Account — เซิร์ฟเวอร์ (webhook) จับคู่ LINE กับบัญชีนี้ */
+const lineBox = () => currentUser.line
+  ? `<div class="row"><span class="hint">เชื่อมต่อ LINE แล้ว</span><span class="sp"></span><button type="button" class="btn sm" onclick="lineUnlink()">เลิกเชื่อมต่อ</button></div>`
+  : `<button type="button" class="btn sm" onclick="lineLink()">เชื่อมต่อ LINE</button>`;
+async function lineLink() {
+  try {
+    const d = await api('/line/link', {});
+    $('lineBox').innerHTML = `<div class="hint">พิมพ์รหัสนี้ในแชท LINE${d.oa ? ' ' + esc(d.oa) : ' Official Account ของ Guru IT'} ภายใน 10 นาที</div><div class="line-code">${d.code}</div><button type="button" class="btn sm" onclick="lineCheck()">ตรวจสอบสถานะ</button>`;
+  } catch (e) { $('mErr').textContent = e.message; }
+}
+async function lineCheck() { try { await loadState(); } catch (e) { $('mErr').textContent = e.message; return; } $('lineBox').innerHTML = lineBox(); if (!currentUser.line) toast('ยังไม่ได้รับรหัสจาก LINE — ลองใหม่อีกครั้ง'); }
+async function lineUnlink() { try { await api('/line/unlink', {}); await loadState(); $('lineBox').innerHTML = lineBox(); } catch (e) { $('mErr').textContent = e.message; } }
 async function saveProfile() {
   const u = currentUser, name = $('mName').value.trim(), phone = $('mPhone').value.replace(/[\s-]/g, ''), email = normEmail($('mEmail').value), cur = $('mCurPw').value;
   const err = !name ? 'กรุณากรอกชื่อ' : phone && !validPhone(phone) ? 'เบอร์โทรไม่ถูกต้อง (เช่น 0812345678)' : emailErr(email, u.id) || (email !== u.email && !cur ? 'ใส่รหัสผ่านปัจจุบันเพื่อเปลี่ยนอีเมล' : '');

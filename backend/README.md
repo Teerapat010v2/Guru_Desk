@@ -88,3 +88,11 @@ node --env-file=.env scripts/seed-demo.js --clear   # ลบทั้งหม�
 - ตัวแปรใน `.env`: `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` `MAIL_FROM` (ส่งอีเมล) และ `APP_URL` (ที่อยู่เว็บที่ใช้ทำลิงก์รีเซ็ต เช่น https://desk.example.com) — ไม่ตั้ง SMTP = ลิงก์ไม่ถูกส่ง (หน้าเว็บยังตอบเหมือนเดิม) ให้ผู้ใช้ใช้ช่องทางติดต่อผู้ดูแลระบบแทน
 - ช่องทางติดต่อผู้ดูแลระบบที่แสดงในหน้า "ลืมรหัสผ่าน": แก้ค่า `SUPPORT` ใน `frontend/public/js/app.js`
 - ตารางงาน MA: server สร้างงานให้เองตอนเริ่มและทุกชั่วโมง (ไม่ต้องเปิดเบราว์เซอร์) กันซ้ำด้วย `ma_runs` (ตาราง, เดือน) · เดือนที่ไม่มีวันที่ตั้งไว้ใช้วันสุดท้ายของเดือน · ทดสอบกติกาวันที่: `node ma-schedule.test.js`
+
+## LINE (แจ้งเตือนเข้า LINE · ต้องรัน migration 007)
+
+1. สร้าง LINE Official Account และเปิด Messaging API ที่ developers.line.biz → ได้ **Channel secret** และ **Channel access token (long-lived)**
+2. ใส่ใน `backend/.env`: `LINE_CHANNEL_TOKEN=…` `LINE_CHANNEL_SECRET=…` `LINE_OA_ID=@ชื่อ-oa` (พิมพ์เอง ไม่ส่งในแชท) แล้วรีสตาร์ตระบบ
+3. ตั้ง Webhook URL ในหน้า LINE Developers เป็น `https://โดเมนของคุณ/api/line/webhook` (ต้องเป็น HTTPS ที่เข้าถึงได้จากอินเทอร์เน็ต — ตอนทดสอบในเครื่องใช้ tunnel เช่น cloudflared/ngrok) แล้วเปิด "Use webhook"
+4. ผู้ใช้: ฉัน → แก้ไขข้อมูลของฉัน → เชื่อมต่อ LINE → พิมพ์รหัส 6 หลักในแชท OA (รหัสอายุ 10 นาที) — จากนั้นการแจ้งเตือนในกระดิ่งจะส่งเข้า LINE ด้วย
+- ทดสอบลายเซ็น webhook: `node backend/line.test.js`

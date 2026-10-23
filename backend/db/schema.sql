@@ -31,6 +31,7 @@ CREATE TABLE users (
   approver    boolean NOT NULL DEFAULT false,
   skills      text[] NOT NULL DEFAULT '{}',
   nickname    text,
+  line_user_id text UNIQUE,   -- LINE userId ที่ผูกไว้ (ส่งแจ้งเตือนเข้า LINE)
   removed     boolean NOT NULL DEFAULT false  -- ลบ = ปิดบัญชี เก็บประวัติไว้
 );
 

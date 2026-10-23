@@ -1,8 +1,9 @@
 // API ของ Guru IT Service Desk — ต่อ PostgreSQL (ตาราง users, sessions ใน db/schema.sql)
 import http from 'node:http';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomInt } from 'node:crypto';
 import pg from 'pg';
 import { sendReportMail, sendScheduleMail, sendResetMail } from './mail.js';
+import { lineEnabled, pushLine, validSignature } from './line.js';
 import { monthKey, isDue, dueDateThisMonth, nextDueDate } from './ma-schedule.js';
 import { hashPassword, verifyPassword, hashToken, newToken } from './auth.js';
 import { isStaff, isManager, canCreateTicket, canTransition, canReject, canAssign, canAssignTech, canWorklog, canResolve, canSignOff, canRate, canManagePartners, canManageTeam, canEditProject, canApproveMembers } from './rules.js';
@@ -16,6 +17,7 @@ const PRIORITIES = ['urgent', 'high', 'medium', 'low'];
 const COOKIE = 'gd_session';
 const SESSION_HOURS = 12;
 const resetHits = new Map();   // อีเมล → { n, at } จำกัดขอลิงก์รีเซ็ต 5 ครั้ง/ชั่วโมง
+const lineCodes = new Map();   // รหัสผูก LINE 6 หลัก → { uid, at } อายุ 10 นาที (หน่วยความจำ process เดียว)
 const failedLogins = new Map();   // อีเมล → { n: จำนวนครั้งที่ใส่รหัสผิด, at: เวลาครั้งล่าสุด }
 const LOCK_MS = 15 * 60000;
 // ใช้ตรวจรหัสเมื่อไม่มีบัญชี เพื่อให้เวลาตอบใกล้เคียงกัน (กันเดาว่าอีเมลไหนมีบัญชี)
@@ -77,10 +79,12 @@ async function setNick(id, nick) {
 async function notify(q, toIds, title, body, ticketId = null, go = null) {
   const to = [...new Set(toIds.filter(Boolean))];
   if (!to.length) return;
-  const { rows } = await q.query('select id from users where id = any($1) and removed = false', [to]);
-  for (const { id } of rows)
+  const { rows } = await q.query("select id, to_jsonb(users)->>'line_user_id' as line from users where id = any($1) and removed = false", [to]);
+  for (const { id, line } of rows) {
     await q.query('insert into notifications (id, to_user, title, body, ticket_id, go) values ($1, $2, $3, $4, $5, $6)',
       [`N${randomBytes(6).toString('hex')}`, id, title.slice(0, 200), body.slice(0, 500), ticketId, go]);
+    if (line) pushLine(line, `${title}\n${body}\n${process.env.APP_URL || 'http://localhost:3000'}`).catch(err => console.error('line:', err.message));
+  }
 }
 // หัวหน้าทีมและผู้ดูแลที่ยังใช้งานอยู่ (คนกระจายงาน)
 const dispatchers = async q => (await q.query("select id from users where role in ('team_leader', 'admin') and removed = false")).rows.map(r => r.id);
@@ -266,6 +270,26 @@ http.createServer(async (req, res) => {
       if (t) await pool.query('delete from sessions where token_hash = $1', [hashToken(t)]);
       return send(res, 200, { ok: true }, { 'set-cookie': cookie('', 0) });
     }
+    // LINE webhook: ผู้ใช้พิมพ์รหัส 6 หลักจากหน้า "แก้ไขข้อมูลของฉัน" ในแชท LINE OA → ผูก LINE กับบัญชีนั้น
+    if (req.method === 'POST' && req.url === '/api/line/webhook') {
+      const chunks = []; let size = 0;
+      for await (const c of req) { size += c.length; if (size > 100_000) return send(res, 413, { error: 'too_large' }); chunks.push(c); }
+      const raw = Buffer.concat(chunks);
+      if (!validSignature(raw, req.headers['x-line-signature'])) return send(res, 401, { error: 'bad_signature' });
+      let events = []; try { events = JSON.parse(raw.toString()).events ?? []; } catch { /* ไม่ใช่ JSON = ไม่มีเหตุการณ์ */ }
+      for (const ev of events) {
+        const text = ev.type === 'message' && ev.message?.type === 'text' ? ev.message.text.trim() : '', lineId = ev.source?.userId, hit = lineCodes.get(text);
+        if (!lineId || !/^\d{6}$/.test(text)) continue;
+        if (!hit || Date.now() - hit.at > 600000) { pushLine(lineId, 'รหัสไม่ถูกต้องหรือหมดอายุ — กดเชื่อมต่อ LINE ในหน้าเว็บเพื่อขอรหัสใหม่'); continue; }
+        lineCodes.delete(text);
+        try {
+          await pool.query('update users set line_user_id = null where line_user_id = $1', [lineId]);   // LINE เดียวผูกได้บัญชีเดียว
+          const { rows: [u] } = await pool.query('update users set line_user_id = $2 where id = $1 returning name', [hit.uid, lineId]);
+          pushLine(lineId, `เชื่อมต่อ LINE กับบัญชี ${u.name} แล้ว จากนี้การแจ้งเตือนงานจะส่งมาที่นี่`);
+        } catch (err) { console.error('line:', err.message); pushLine(lineId, 'ระบบยังไม่พร้อมเชื่อมต่อ LINE (ผู้ดูแลต้องรัน migration 007)'); }
+      }
+      return send(res, 200, {});
+    }
     if (req.method === 'GET' && req.url === '/api/rev') {
       return (await currentUser(req)) ? send(res, 200, { rev }) : send(res, 401, { error: 'not_signed_in' });
     }
@@ -294,7 +318,7 @@ http.createServer(async (req, res) => {
                            rt.score, rt.comment as r_comment, rt.by_user as r_by, rt.via as r_via, rt.at as r_at
                     from reports r left join signoffs s on s.ticket_id = r.ticket_id left join ratings rt on rt.ticket_id = r.ticket_id
                     where r.ticket_id = any($1)`, [ids]),
-        pool.query('select id, name, role, team, phone, email, customer_id, site_id, approver, skills, removed, to_jsonb(users)->>\'nickname\' as nickname from users order by name'),
+        pool.query('select id, name, role, team, phone, email, customer_id, site_id, approver, skills, removed, to_jsonb(users)->>\'nickname\' as nickname, (to_jsonb(users)->>\'line_user_id\') is not null as line_linked from users order by name'),
         pool.query('select id, name, contract, contact, phone, email from customers order by name'),
         pool.query('select id, customer_id, name, address, contact, phone, lat, lng from sites order by id'),
       ]);
@@ -339,8 +363,8 @@ http.createServer(async (req, res) => {
         const full = isManager(me) || (me.role === 'technician' && u.role !== 'customer') || (me.role === 'customer' && u.customer_id === me.customer_id);
         if (!full && u.role === 'customer' && !seeCust.has(u.customer_id)) continue;
         users[u.id] = full
-          ? { id: u.id, name: u.name, role: u.role, team: u.team, phone: u.phone ?? '', email: u.email ?? '', customer: u.customer_id, siteId: u.site_id, approver: u.approver, nick: u.nickname ?? '', skills: u.skills, removed: u.removed }
-          : { id: u.id, name: u.name, role: u.role, team: u.team, customer: u.customer_id, nick: u.nickname ?? '', skills: [], removed: u.removed };
+          ? { id: u.id, name: u.name, role: u.role, team: u.team, phone: u.phone ?? '', email: u.email ?? '', customer: u.customer_id, siteId: u.site_id, approver: u.approver, nick: u.nickname ?? '', line: u.id === me.id && u.line_linked, skills: u.skills, removed: u.removed }
+          : { id: u.id, name: u.name, role: u.role, team: u.team, customer: u.customer_id, nick: u.nickname ?? '', line: u.id === me.id && u.line_linked, skills: [], removed: u.removed };
         users[u.id].photo = P[`${u.id}:u`]?.at(-1) ?? null;
       }
       // โปรเจกต์: หัวหน้าทีม/ผู้ดูแลเห็นทั้งหมด · ช่างเห็นที่ตัวเองรับผิดชอบ · ลูกค้าเห็นของบริษัทตัวเอง (กฎเดียวกับ canSeeProject)
@@ -723,6 +747,22 @@ http.createServer(async (req, res) => {
         throw err;
       }
       if (b.nick !== undefined && !(await setNick(me.id, nick))) return send(res, 503, { error: 'migration_needed' });
+      return send(res, 200, { ok: true });
+    }
+    // ผูก/เลิกผูก LINE ของตัวเอง
+    if (req.method === 'POST' && req.url === '/api/line/link') {
+      const me = await currentUser(req);
+      if (!me) return send(res, 401, { error: 'not_signed_in' });
+      if (!lineEnabled()) return send(res, 503, { error: 'line_not_configured' });
+      for (const [k, v] of lineCodes) if (v.uid === me.id || Date.now() - v.at > 600000) lineCodes.delete(k);
+      let code; do { code = String(randomInt(100000, 1000000)); } while (lineCodes.has(code));
+      lineCodes.set(code, { uid: me.id, at: Date.now() });
+      return send(res, 200, { code, oa: process.env.LINE_OA_ID || '' });
+    }
+    if (req.method === 'POST' && req.url === '/api/line/unlink') {
+      const me = await currentUser(req);
+      if (!me) return send(res, 401, { error: 'not_signed_in' });
+      await pool.query('update users set line_user_id = null where id = $1', [me.id]);
       return send(res, 200, { ok: true });
     }
     // บัญชีผู้ใช้: POST /api/users = เพิ่ม · POST /api/users/:id = แก้ไข/ปิดบัญชี
