@@ -3,7 +3,7 @@ import http from 'node:http';
 import { randomBytes, randomInt } from 'node:crypto';
 import pg from 'pg';
 import { sendReportMail, sendScheduleMail, sendResetMail } from './mail.js';
-import { lineEnabled, pushLine, validSignature } from './line.js';
+import { lineEnabled, pushLine, replyLine, validSignature } from './line.js';
 import { monthKey, isDue, dueDateThisMonth, nextDueDate } from './ma-schedule.js';
 import { hashPassword, verifyPassword, hashToken, newToken } from './auth.js';
 import { isStaff, isManager, canCreateTicket, canTransition, canReject, canAssign, canAssignTech, canWorklog, canResolve, canSignOff, canRate, canManagePartners, canManageTeam, canEditProject, canApproveMembers } from './rules.js';
@@ -93,6 +93,27 @@ const ROUTES = ['team_leader', 'admin'];
 const byRole = async (q, role) => (await q.query('select id from users where role = $1 and removed = false', [role])).rows.map(r => r.id);
 // ผู้รับอีเมลใบรายงานเมื่องานเสร็จ: งาน MA → หัวหน้าพนักงานของบริษัท (ไม่มีก็อีเมลบริษัท) · งานแจ้งเหตุ → ผู้แจ้ง (ไม่มีอีเมลก็ตามกติกา MA)
 // งาน MA = มีเช็กลิสต์ในใบรายงาน หรือชื่อขึ้นต้น "ตรวจเช็ก MA" (ที่ปุ่มสร้างงาน MA ตั้งให้)
+/* เปิดงานใหม่ (ใช้ร่วมกันระหว่างหน้าเว็บและแชท LINE): คืนเลขงาน หรือ null ถ้าสถานที่ไม่ใช่ของบริษัทนี้ */
+const openTicketTx = (me, t, desc, photos, route) => inTx(async c => {
+  // สถานที่ต้องเป็นของบริษัทเดียวกับงาน
+  if (t.siteId && !(await c.query('select 1 from sites where id = $1 and customer_id = $2', [t.siteId, t.customerId])).rowCount) return null;
+  // ล็อกสั้น ๆ กันสองคนได้เลขงานเดียวกัน (ผู้ใช้ของแอปสร้าง sequence เองไม่ได้)
+  await c.query("select pg_advisory_xact_lock(hashtext('ticket_id'))");
+  const { rows: [{ n }] } = await c.query("select coalesce(max(substr(id, 3)::bigint), 1000) + 1 as n from tickets");
+  const tid = `T-${n}`;
+  await c.query(`insert into tickets (id, type, customer_id, site_id, location, subject, category, priority, status)
+                 values ($1, $2, $3, $4, $5, $6, $7, $8, 'new')`, [tid, t.type, t.customerId, t.siteId, t.location, t.subject, t.category, t.priority]);
+  await c.query("insert into ticket_history (ticket_id, from_status, to_status, by_user) values ($1, null, 'new', $2)", [tid, me.id]);
+  if (desc) await c.query("insert into comments (ticket_id, by_user, vis, text) values ($1, $2, 'public', $3)", [tid, me.id, desc]);
+  await savePhotos(c, tid, 't', photos);
+  await audit(c, me, `เปิดงาน ${tid}`, t.subject);
+  // แจ้งคนกระจายงาน (ยกเว้นคนที่เปิดงานเอง)
+  const title = me.role !== 'customer' ? 'งานใหม่' : t.type === 'complaint' ? 'เรื่องร้องเรียนใหม่' : `งานใหม่${t.priority === 'urgent' ? ' · ด่วนมาก' : ''}`;
+  const { rows: [co] } = await c.query('select name from customers where id = $1', [t.customerId]);
+  const to = me.role === 'customer' && ROUTES.includes(route) ? await byRole(c, route) : await dispatchers(c);
+  await notify(c, to.filter(x => x !== me.id), title, `${t.subject} — ${co?.name ?? '-'}`, tid);
+  return tid;
+});
 // ช่างผู้รับผิดชอบงาน (ผู้ส่งอีเมลใบรายงาน) — ไม่มีก็ใช้ชื่อกลางของระบบ
 const senderOf = async (q, ticketId) => (await q.query('select u.name, u.email, u.phone from tickets t join users u on u.id = t.assignee_id where t.id = $1', [ticketId])).rows[0] ?? null;
 async function reportRecipients(q, ticketId) {
@@ -192,6 +213,40 @@ setInterval(() => runMaSchedules().catch(err => console.error('ma:', err.message
 // เลขแก้ไขล่าสุด: เพิ่มทุกครั้งที่มีคำสั่งแก้ไขสำเร็จ หน้าเว็บถามเลขนี้ทุก 3 วินาทีแล้วโหลดข้อมูลใหม่เมื่อเปลี่ยน (แชทเห็นข้อความใหม่โดยไม่ต้องรีเฟรช)
 // shortcut: นับในหน่วยความจำของ process เดียว และเป็นเลขรวมทุกคน — หลาย instance/ผู้ใช้มากต้องใช้ SSE/WebSocket หรือ Postgres LISTEN/NOTIFY
 let rev = 0;
+/* แชท LINE: รหัส 6 หลัก = ผูกบัญชี · "แจ้ง <ปัญหา>" = เปิดงาน (ลูกค้าที่ผูกแล้ว) · "สถานะ" = ดูงานที่ยังไม่จบ
+   shortcut: รับเฉพาะข้อความตัวอักษร (รูปใน LINE ยังไม่รับ) · จำกัด 5 งาน/ชั่วโมง/คน กันสแปม — ย้ายไปฐานข้อมูลเมื่อมีหลาย instance */
+const lineTickets = new Map();   // lineId → เวลาที่เปิดงานล่าสุด[]
+const LINE_HELP = 'พิมพ์ "แจ้ง <ปัญหาที่พบ>" เพื่อแจ้งงาน หรือ "สถานะ" เพื่อดูงานของคุณ';
+async function handleLineEvent(ev) {
+  if (ev.type !== 'message' || ev.message?.type !== 'text' || !ev.source?.userId) return;
+  const text = ev.message.text.trim(), lineId = ev.source.userId, tok = ev.replyToken, say = m => replyLine(tok, m);
+  if (/^\d{6}$/.test(text)) {
+    const hit = lineCodes.get(text);
+    if (!hit || Date.now() - hit.at > 600000) return say('รหัสไม่ถูกต้องหรือหมดอายุ — กดเชื่อมต่อ LINE ในหน้าเว็บเพื่อขอรหัสใหม่');
+    lineCodes.delete(text);
+    try {
+      await pool.query('update users set line_user_id = null where line_user_id = $1', [lineId]);   // LINE เดียวผูกได้บัญชีเดียว
+      const { rows: [u] } = await pool.query('update users set line_user_id = $2 where id = $1 returning name', [hit.uid, lineId]);
+      return say(`เชื่อมต่อ LINE กับบัญชี ${u.name} แล้ว จากนี้การแจ้งเตือนงานจะส่งมาที่นี่\n${LINE_HELP}`);
+    } catch (err) { console.error('line:', err.message); return say('ระบบยังไม่พร้อมเชื่อมต่อ LINE (ผู้ดูแลต้องรัน migration 007)'); }
+  }
+  const { rows: [u] } = await pool.query("select * from users where to_jsonb(users)->>'line_user_id' = $1 and removed = false", [lineId]);
+  if (!u) return say('ยังไม่ได้เชื่อมต่อบัญชี — เข้าเว็บ Guru IT Service Desk › ฉัน › แก้ไขข้อมูลของฉัน › เชื่อมต่อ LINE แล้วพิมพ์รหัส 6 หลักที่นี่');
+  if (text === 'สถานะ') {
+    const { rows } = await pool.query("select id, subject, status from tickets where status <> 'closed' and (customer_id = $1 or assignee_id = $2) order by created_at desc limit 5", [u.customer_id, u.id]);
+    return say(rows.length ? rows.map(r => `${r.id} ${r.subject} — ${STATUS_TH[r.status] ?? r.status}`).join('\n') : 'ไม่มีงานที่ยังไม่จบ');
+  }
+  const m = /^แจ้ง(?:เหตุ|ปัญหา)?\s+([\s\S]+)$/.exec(text);
+  if (!m) return say(LINE_HELP);
+  if (u.role !== 'customer') return say('การแจ้งงานผ่าน LINE ใช้ได้เฉพาะบัญชีลูกค้า — ทีมงานเปิดงานในหน้าเว็บ');
+  const recent = (lineTickets.get(lineId) ?? []).filter(t => Date.now() - t < 3600000);
+  if (recent.length >= 5) return say('แจ้งงานบ่อยเกินไป — กรุณารอสักครู่ หรือโทรหาทีมงาน');
+  const desc = m[1].trim().slice(0, 2000), first = desc.split('\n')[0].trim();
+  const id = await openTicketTx(u, { type: 'service', customerId: u.customer_id, location: null, category: 'other',
+    subject: first.length > 60 ? `${first.slice(0, 57)}…` : first, priority: 'medium', siteId: u.site_id }, desc, [], null);
+  lineTickets.set(lineId, [...recent, Date.now()]);
+  return say(id ? `รับเรื่องแล้ว เลขงาน ${id} — ทีมงานจะติดต่อกลับ ติดตามได้ด้วยคำว่า "สถานะ"` : 'เปิดงานไม่สำเร็จ ลองใหม่อีกครั้ง');
+}
 http.createServer(async (req, res) => {
   if (req.method === 'POST') res.on('finish', () => { if (res.statusCode < 300) rev++; });
   try {
@@ -277,17 +332,7 @@ http.createServer(async (req, res) => {
       const raw = Buffer.concat(chunks);
       if (!validSignature(raw, req.headers['x-line-signature'])) return send(res, 401, { error: 'bad_signature' });
       let events = []; try { events = JSON.parse(raw.toString()).events ?? []; } catch { /* ไม่ใช่ JSON = ไม่มีเหตุการณ์ */ }
-      for (const ev of events) {
-        const text = ev.type === 'message' && ev.message?.type === 'text' ? ev.message.text.trim() : '', lineId = ev.source?.userId, hit = lineCodes.get(text);
-        if (!lineId || !/^\d{6}$/.test(text)) continue;
-        if (!hit || Date.now() - hit.at > 600000) { pushLine(lineId, 'รหัสไม่ถูกต้องหรือหมดอายุ — กดเชื่อมต่อ LINE ในหน้าเว็บเพื่อขอรหัสใหม่'); continue; }
-        lineCodes.delete(text);
-        try {
-          await pool.query('update users set line_user_id = null where line_user_id = $1', [lineId]);   // LINE เดียวผูกได้บัญชีเดียว
-          const { rows: [u] } = await pool.query('update users set line_user_id = $2 where id = $1 returning name', [hit.uid, lineId]);
-          pushLine(lineId, `เชื่อมต่อ LINE กับบัญชี ${u.name} แล้ว จากนี้การแจ้งเตือนงานจะส่งมาที่นี่`);
-        } catch (err) { console.error('line:', err.message); pushLine(lineId, 'ระบบยังไม่พร้อมเชื่อมต่อ LINE (ผู้ดูแลต้องรัน migration 007)'); }
-      }
+      for (const ev of events) await handleLineEvent(ev).catch(err => console.error('line:', err.message));
       return send(res, 200, {});
     }
     if (req.method === 'GET' && req.url === '/api/rev') {
@@ -417,26 +462,7 @@ http.createServer(async (req, res) => {
       }
       t.siteId = b.siteId ? String(b.siteId) : null;
       try {
-        const id = await inTx(async c => {
-          // สถานที่ต้องเป็นของบริษัทเดียวกับงาน
-          if (t.siteId && !(await c.query('select 1 from sites where id = $1 and customer_id = $2', [t.siteId, t.customerId])).rowCount) return null;
-          // ล็อกสั้น ๆ กันสองคนได้เลขงานเดียวกัน (ผู้ใช้ของแอปสร้าง sequence เองไม่ได้)
-          await c.query("select pg_advisory_xact_lock(hashtext('ticket_id'))");
-          const { rows: [{ n }] } = await c.query("select coalesce(max(substr(id, 3)::bigint), 1000) + 1 as n from tickets");
-          const tid = `T-${n}`;
-          await c.query(`insert into tickets (id, type, customer_id, site_id, location, subject, category, priority, status)
-                         values ($1, $2, $3, $4, $5, $6, $7, $8, 'new')`, [tid, t.type, t.customerId, t.siteId, t.location, t.subject, t.category, t.priority]);
-          await c.query("insert into ticket_history (ticket_id, from_status, to_status, by_user) values ($1, null, 'new', $2)", [tid, me.id]);
-          if (desc) await c.query("insert into comments (ticket_id, by_user, vis, text) values ($1, $2, 'public', $3)", [tid, me.id, desc]);
-          await savePhotos(c, tid, 't', photos);
-          await audit(c, me, `เปิดงาน ${tid}`, t.subject);
-          // แจ้งคนกระจายงาน (ยกเว้นคนที่เปิดงานเอง)
-          const title = me.role !== 'customer' ? 'งานใหม่' : type === 'complaint' ? 'เรื่องร้องเรียนใหม่' : `งานใหม่${t.priority === 'urgent' ? ' · ด่วนมาก' : ''}`;
-          const { rows: [co] } = await c.query('select name from customers where id = $1', [t.customerId]);
-          const to = me.role === 'customer' && ROUTES.includes(b.route) ? await byRole(c, b.route) : await dispatchers(c);
-          await notify(c, to.filter(x => x !== me.id), title, `${t.subject} — ${co?.name ?? '-'}`, tid);
-          return tid;
-        });
+        const id = await openTicketTx(me, t, desc, photos, b.route);
         return id ? send(res, 200, { id }) : send(res, 400, { error: 'invalid_site' });
       } catch (err) {
         if (err.code === '23503') return send(res, 400, { error: 'invalid_company' });   // บริษัทไม่มีอยู่จริง
