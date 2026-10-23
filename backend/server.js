@@ -89,6 +89,8 @@ const ROUTES = ['team_leader', 'admin'];
 const byRole = async (q, role) => (await q.query('select id from users where role = $1 and removed = false', [role])).rows.map(r => r.id);
 // ผู้รับอีเมลใบรายงานเมื่องานเสร็จ: งาน MA → หัวหน้าพนักงานของบริษัท (ไม่มีก็อีเมลบริษัท) · งานแจ้งเหตุ → ผู้แจ้ง (ไม่มีอีเมลก็ตามกติกา MA)
 // งาน MA = มีเช็กลิสต์ในใบรายงาน หรือชื่อขึ้นต้น "ตรวจเช็ก MA" (ที่ปุ่มสร้างงาน MA ตั้งให้)
+// ช่างผู้รับผิดชอบงาน (ผู้ส่งอีเมลใบรายงาน) — ไม่มีก็ใช้ชื่อกลางของระบบ
+const senderOf = async (q, ticketId) => (await q.query('select u.name, u.email, u.phone from tickets t join users u on u.id = t.assignee_id where t.id = $1', [ticketId])).rows[0] ?? null;
 async function reportRecipients(q, ticketId) {
   const { rows: [t] } = await q.query(`select t.subject, t.customer_id, c.email as cemail, to_jsonb(r) -> 'checklist' as cl,
       (select u.email from ticket_history h join users u on u.id = h.by_user where h.ticket_id = t.id and h.from_status is null order by h.id limit 1) as reporter
@@ -537,8 +539,8 @@ http.createServer(async (req, res) => {
         if (done) {
           // ส่งใบรายงานให้ลูกค้าอัตโนมัติ — ส่งไม่ได้ก็ไม่ทำให้การปิดงานล้ม
           const { rows: [m] } = await pool.query("select r.no, r.summary, r.parts, r.hours, to_jsonb(r) -> 'checklist' as checklist, t.subject from tickets t join reports r on r.ticket_id = t.id where t.id = $1", [id]);
-          const to = await reportRecipients(pool, id);
-          Promise.all(to.map(a => sendReportMail(a, { no: m?.no, subject: m?.subject, summary: m?.summary, parts: m?.parts, hours: m?.hours, signName: name, checklist: m?.checklist })))
+          const to = await reportRecipients(pool, id), sender = await senderOf(pool, id);
+          Promise.all(to.map(a => sendReportMail(a, { no: m?.no, subject: m?.subject, summary: m?.summary, parts: m?.parts, hours: m?.hours, signName: name, checklist: m?.checklist }, sender)))
             .catch(err => console.error('mail:', err.message));
         }
         return done ? send(res, 200, { ok: true }) : send(res, 409, { error: 'status_changed' });
@@ -593,10 +595,10 @@ http.createServer(async (req, res) => {
         const { rows: [m] } = await pool.query(`select r.no, r.summary, r.parts, r.hours, to_jsonb(r) -> 'checklist' as checklist, t.subject, s.name as sname
                                                 from tickets t join reports r on r.ticket_id = t.id left join signoffs s on s.ticket_id = t.id where t.id = $1`, [id]);
         if (!m) return send(res, 404, { error: 'not_found' });
-        const to = await reportRecipients(pool, id);
+        const to = await reportRecipients(pool, id), sender = await senderOf(pool, id);
         if (!to.length) return send(res, 400, { error: 'no_recipient' });
         let sent = 0;
-        try { for (const addr of to) if (await sendReportMail(addr, { no: m.no, subject: m.subject, summary: m.summary, parts: m.parts, hours: m.hours, signName: m.sname || '-', checklist: m.checklist })) sent++; }
+        try { for (const addr of to) if (await sendReportMail(addr, { no: m.no, subject: m.subject, summary: m.summary, parts: m.parts, hours: m.hours, signName: m.sname || '-', checklist: m.checklist }, sender)) sent++; }
         catch (err) { console.error('mail:', err.message); return send(res, 502, { error: 'mail_failed' }); }
         await audit(pool, me, `ส่งใบรายงานทางอีเมล ${id}`, `${sent}/${to.length} ที่อยู่`);
         return send(res, 200, { sent, total: to.length });

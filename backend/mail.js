@@ -21,7 +21,12 @@ const checklistHtml = c => !c ? '' : `<h3 style="margin:16px 0 6px">MA Checklist
   ${c.pc.map(x => `<tr><td ${td}>${esc(x.name)}</td><td ${td} align="center">${tick(x.disk)}</td><td ${td} align="center">${tick(x.win)}</td><td ${td} align="center">${tick(x.virus)}</td></tr>`).join('')}</table>` : ''}
   ${c.notes ? `<p><b>Note:</b> ${esc(c.notes)}</p>` : ''}`;
 
-export function reportMail({ no, subject, summary, parts, hours, signName, checklist }) {
+// ผู้ส่ง = ช่างผู้รับผิดชอบงาน: ชื่อบนหัวจดหมายเป็นชื่อช่าง ตอบกลับเข้าอีเมลช่างโดยตรง และมีลายเซ็นท้ายจดหมาย
+// shortcut: ส่งผ่านกล่องจดหมายกลางของบริษัท (From ต้องเป็นกล่องที่ SMTP อนุญาต) — จะส่งจากกล่องของช่างเองได้เมื่อตั้ง Send-As ใน Microsoft 365
+const signature = u => !u ? '' : `<p style="margin:18px 0 0;color:#18212d">${esc(u.name)}<br>Guru IT Solution Co., Ltd.${u.phone ? `<br>โทร ${esc(u.phone)}` : ''}${u.email ? `<br>${esc(u.email)}` : ''}</p>`;
+const sentFrom = u => (u?.name ? `"${u.name.replace(/["\\]/g, '')}" <${from()}>` : from());
+
+export function reportMail({ no, subject, summary, parts, hours, signName, checklist }, sender) {
   return {
     subject: `ใบรายงาน ${no} — ${subject}`,
     html: `<div style="font-family:sans-serif;color:#18212d">
@@ -32,13 +37,14 @@ export function reportMail({ no, subject, summary, parts, hours, signName, check
       <p><b>เวลาที่ใช้</b> ${Number(hours)} ชั่วโมง</p>
       ${checklistHtml(checklist)}
       <p><b>ผู้รับงาน</b> ${esc(signName)}</p>
-      <p style="color:#5f6875;font-size:12px">อีเมลนี้ส่งอัตโนมัติจาก Guru IT Service Desk</p></div>`,
+      ${signature(sender)}
+      <p style="color:#5f6875;font-size:12px">ส่งจากระบบ Guru IT Service Desk</p></div>`,
   };
 }
 
-export async function sendReportMail(to, report) {
+export async function sendReportMail(to, report, sender) {
   if (!transport || !to) return false;
-  await transport.sendMail({ from: from(), to, ...reportMail(report) });
+  await transport.sendMail({ from: sentFrom(sender), ...(sender?.email ? { replyTo: sender.email } : {}), to, ...reportMail(report, sender) });
   return true;
 }
 
