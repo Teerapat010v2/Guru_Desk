@@ -1328,23 +1328,19 @@ function suggestHours(tk) {
   return 1;   // เริ่มที่ 1 ชม. ช่างปรับเอง — เวลาที่งานเปิดค้างอยู่ไม่ใช่เวลาทำงานจริง
 }
 /* เช็กลิสต์งาน MA ตามใบ Customer Service Report: อุปกรณ์ระบบ + เครื่องผู้ใช้ — เฉพาะลูกค้าสัญญา MA */
+const PC_ROWS = [0, 1, 2, 3, 4, 5, 6, 7, 8];   // แถวเครื่องผู้ใช้ตามใบ CSR
 const MA_HW = ['Firewall', 'Server', 'Switch', 'NAS', 'UPS', 'CCTV', 'Printers', 'Router ISP', 'Wireless AP'];
 const isMA = isMAJob;
 const maForm = tk => !isMA(tk) ? '' : `<div class="rs-b1"><div class="fl">เช็กลิสต์ MA — อุปกรณ์ระบบ</div>
   <div class="card ma-box">${MA_HW.map((h, i) => `<div class="ma-row"><label><input type="checkbox" id="mhw${i}"> ${h}</label><input id="mhn${i}" placeholder="หมายเหตุ" maxlength="200" aria-label="หมายเหตุ ${h}"></div>`).join('')}</div>
   </div><div class="rs-b2"><div class="fl">เครื่องผู้ใช้ (ไม่ต้องกรอกทุกช่อง)</div>
-  <div class="card ma-box">${[0, 1, 2, 3, 4].map(i => `<div class="ma-row"><input id="mpn${i}" placeholder="ชื่อผู้ใช้" maxlength="60" aria-label="ชื่อผู้ใช้ ${i + 1}"><span class="ma-chk"><label><input type="checkbox" id="mpd${i}">ดิสก์</label><label><input type="checkbox" id="mpw${i}">อัปเดต</label><label><input type="checkbox" id="mpv${i}">ไวรัส</label></span></div>`).join('')}</div>
+  <div class="card ma-box">${PC_ROWS.map(i => `<div class="ma-row"><input id="mpn${i}" placeholder="ชื่อผู้ใช้" maxlength="60" aria-label="ชื่อผู้ใช้ ${i + 1}"><span class="ma-chk"><label><input type="checkbox" id="mpd${i}">ดิสก์</label><label><input type="checkbox" id="mpw${i}">อัปเดต</label><label><input type="checkbox" id="mpv${i}">ไวรัส</label></span></div>`).join('')}</div>
   <input id="mNotes" placeholder="หมายเหตุอื่นๆ (เช่น ตั้งค่า WiFi, Shared Calendar)" maxlength="500" aria-label="หมายเหตุอื่นๆ"></div>`;
 const maBox = tk => !isMA(tk) ? null : {
   hw: MA_HW.map((h, i) => ({ item: h, ok: $('mhw' + i).checked, note: $('mhn' + i).value.trim() })),
-  pc: [0, 1, 2, 3, 4].map(i => ({ name: $('mpn' + i).value.trim(), disk: $('mpd' + i).checked, win: $('mpw' + i).checked, virus: $('mpv' + i).checked, note: '' })).filter(x => x.name),
+  pc: PC_ROWS.map(i => ({ name: $('mpn' + i).value.trim(), disk: $('mpd' + i).checked, win: $('mpw' + i).checked, virus: $('mpv' + i).checked, note: '' })).filter(x => x.name),
   notes: $('mNotes').value.trim(),
 };
-const maReport = c => `<h2>เช็กลิสต์ MA</h2>
-  <table class="p-grid"><tr><th>อุปกรณ์</th><th>ตรวจแล้ว</th><th colspan="2">หมายเหตุ</th></tr>
-  ${c.hw.map(x => `<tr><td>${esc(x.item)}</td><td class="c">${x.ok ? '✓' : '–'}</td><td colspan="2">${esc(x.note || '')}</td></tr>`).join('')}</table>
-  ${c.pc?.length ? `<table class="p-grid p-newpage"><tr><th>เครื่องผู้ใช้</th><th>ดิสก์</th><th>Windows Update</th><th>ไวรัส</th></tr>${c.pc.map(x => `<tr><td>${esc(x.name)}</td><td class="c">${x.disk ? '✓' : '–'}</td><td class="c">${x.win ? '✓' : '–'}</td><td class="c">${x.virus ? '✓' : '–'}</td></tr>`).join('')}</table>` : ''}
-  ${c.notes ? `<p class="p-text">${esc(c.notes)}</p>` : ''}`;
 function openResolve(id) {
   const tk = tickets.find(x => x.id === id), u = currentUser;
   if (!canResolveWithReport(u, tk)) return;
@@ -1738,11 +1734,38 @@ async function emailReport(id) {
     toast(d.sent ? `ส่งอีเมลแล้ว ${d.sent} ที่อยู่` : 'ยังไม่ได้ตั้งค่าอีเมลของระบบ (SMTP) จึงยังส่งไม่ได้'); }
   catch (e) { toast(e.message); }
 }
+/* ใบรายงานงาน MA: รูปแบบ Customer Service Report ของบริษัท จบใน A4 หน้าเดียว (รูปประกอบถ้ามีไปต่อหน้าสอง) */
+const box = ok => (ok ? '&#9745;' : '&#9744;');
+function csrDoc(tk) {
+  const r = tk.report, c = r.checklist, s = siteOf(tk), so = r.signoff;
+  const d = r.at, date = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(2)}`;
+  const pc = Array.from({ length: PC_ROWS.length }, (_, i) => c.pc?.[i] || null);
+  return `<div class="csr">
+    <header class="csr-top"><img src="img/logo.png" alt="Guru IT Solution Co., Ltd." width="150" height="44">
+      <div class="csr-co">823/3 My Office Charoen Krung<br>Unit 309 Charoen Krung Road<br>Bang Kho Leam, Bangkok 10120<br>+66 (0) 2114 7328<br>www.guru-itsolution.com<br>support@guru-itsolution.com</div></header>
+    <div class="csr-bar blue">CUSTOMER SERVICE REPORT</div>
+    <div class="csr-info"><div><b>Date :</b> ${date}</div><div><b>Customer Name :</b> ${esc(custName(tk.customer))}</div><div><b>Customer Address :</b> ${esc(s?.address || s?.name || '-')}</div></div>
+    <div class="csr-bar orange"></div>
+    <table class="csr-t csr-hw"><tr><th colspan="3" class="csr-h">MAINTENANCE SERVER AND NETWORK EQUIPMENTS</th></tr>
+      <tr class="csr-sub"><th>Hardware</th><th>Check</th><th>Note</th></tr>
+      ${MA_HW.map(h => { const x = c.hw.find(y => y.item === h); return `<tr><td>${h}.</td><td class="c">${box(x?.ok)}</td><td>${esc(x?.note || '')}</td></tr>`; }).join('')}
+      </table><table class="csr-t csr-u"><tr><th colspan="6" class="csr-h">IT MAINTENANCE ( USERS COMPUTER )</th></tr>
+      <tr class="csr-sub"><th>#</th><th>Name</th><th>Disk Clean</th><th>Windows update</th><th>Virus Scan</th><th>Note</th></tr>
+      ${pc.map((x, i) => `<tr><td class="c">${i + 1}.</td><td>${esc(x?.name || '')}</td><td class="c">${box(x?.disk)}</td><td class="c">${box(x?.win)}</td><td class="c">${box(x?.virus)}</td><td>${esc(x?.note || '')}</td></tr>`).join('')}
+    </table>
+    <p class="csr-note"><b>NOTE :</b> ${esc(c.notes || '')}</p>
+    <p class="csr-note"><b>WORK DONE :</b> ${esc(r.summary)} · ${hrs(r.hours)} · ${esc(r.no)} / ${tk.id}</p>
+    <div class="csr-sign"><div><div class="csr-sh">ENGINEER SIGN</div><div class="csr-sg typed">${esc(nameOf(r.by))}</div></div>
+      <div><div class="csr-sh">CONTACT SIGN &ndash; OFF</div><div class="csr-sg">${so ? `<img src="${so.sig}" alt="">` : ''}</div><div class="csr-sn">( ${so ? esc(so.name) : 'signature'} )</div></div></div>
+    ${r.photos?.length ? `<div class="p-newpage"><h2>Photos</h2><div class="p-photos">${r.photos.filter(p => PHOTOS[p]).map(p => `<img src="${PHOTOS[p]}" alt="">`).join('')}</div></div>` : ''}
+  </div>`;
+}
 function openReport(id) {
   const tk = tickets.find(x => x.id === id);
   if (!tk || !canSeeReport(currentUser, tk)) return;
   const r = tk.report, s = siteOf(tk), so = r.signoff, st = signState(tk);
   const started = tk.history.filter(h => h.to === 'in_progress').at(-1)?.at;
+  if (r.checklist) return openDoc(`ใบรายงาน ${r.no}`, csrDoc(tk), isManager(currentUser) ? `<button class="btn sm" onclick="emailReport('${id}')">${ic('send', 15, 2)}ส่งอีเมล</button>` : '');
   const html = paperHead('ใบรายงานการปฏิบัติงาน', 'Service Report', `<div class="p-no">เลขที่ <b>${r.no}</b></div><div class="p-no">วันที่ ${fmtD(r.at)}</div>`)
   + `<table class="p-grid">
       <tr><th>ลูกค้า</th><td colspan="3"><b>${esc(custName(tk.customer))}</b></td></tr>
@@ -1758,7 +1781,6 @@ function openReport(id) {
       <tr><th>ช่างผู้ปฏิบัติงาน</th><td>${esc(nameOf(r.by))}</td><th>เวลาที่ใช้</th><td>${hrs(r.hours)}</td></tr>
       <tr><th>เริ่มดำเนินการ</th><td>${started ? fmt(started) : '-'}</td><th>แล้วเสร็จ</th><td>${fmt(r.at)}</td></tr>
     </table>
-    ${r.checklist ? maReport(r.checklist) : ''}
     ${r.photos?.length ? `<h2>รูปภาพประกอบ</h2><div class="p-photos">${r.photos.filter(p => PHOTOS[p]).map(p => `<img src="${PHOTOS[p]}" alt="รูปหลังดำเนินการ">`).join('')}</div>` : ''}
     <div class="p-signs">
       <div class="p-sign"><div class="p-sigbox typed">${esc(nameOf(r.by))}</div><b>( ${esc(nameOf(r.by))} )</b><small>ผู้ปฏิบัติงาน · ${fmtD(r.at)}</small><small class="muted">ยืนยันตัวตนด้วยการเข้าสู่ระบบ</small></div>

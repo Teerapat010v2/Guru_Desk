@@ -1194,3 +1194,30 @@ textarea,input,select{border-radius:14px}
 .cal-c.sel u{background:#fff;color:var(--primary)}
 .cal-none{text-align:center;margin:10px 0 0}
 .calwrap .cal-day{margin-top:10px}
+
+/* ใบรายงาน MA แบบ CSR (A4 หน้าเดียว) */
+.csr{font-size:0.8125rem;color:#111;background:#fff}
+.csr-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding-bottom:6px}
+.csr-top img{width:150px;height:auto}
+.csr-co{text-align:right;font-size:0.6875rem;line-height:1.35}
+.csr-bar{text-align:center;font-weight:700;padding:3px 0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.csr-bar.blue{background:#2B7CD3;color:#fff}
+.csr-bar.orange{background:#F8B27A;height:14px;margin:6px 0 10px}
+.csr-info{background:#F2F2F2;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.csr-info>div{padding:4px 8px;border-bottom:2px solid #fff}
+.csr-t{width:100%;border-collapse:collapse;border:1px solid #9FC3E8}
+.csr-t td,.csr-t th{border:1px solid #9FC3E8;padding:2px 6px;height:20px}
+.csr-t th.csr-h{color:#2B7CD3;font-size:0.9375rem;text-align:center;border:0;padding-top:6px}
+.csr-sub th{font-weight:700;text-align:center}
+.csr-t td.c{text-align:center}
+.csr-hw td:first-child,.csr-hw .csr-sub th:first-child{width:28%}.csr-hw td.c,.csr-hw .csr-sub th:nth-child(2){width:12%}
+.csr-u{margin-top:-1px}.csr-u td:first-child,.csr-u .csr-sub th:first-child{width:6%}.csr-u td:nth-child(2),.csr-u .csr-sub th:nth-child(2){width:26%}.csr-u td.c:not(:first-child){width:11%}
+.csr-note{margin:10px 0 0}
+.csr-sign{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:18px;break-inside:avoid}
+.csr-sh{background:#F2F2F2;font-weight:700;padding:3px 8px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.csr-sg{height:50px;border-bottom:1px dashed #666;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px}
+.csr-sg img{max-height:46px;max-width:100%}
+.csr-sg.typed{font-style:italic;justify-content:flex-start}
+.csr-sn{text-align:center;font-size:0.75rem;font-style:italic;margin-top:2px}
+@media print{.csr{font-size:9.5pt}.csr-t td,.csr-t th{height:6mm;padding:1px 5px}.csr-sign{margin-top:8mm}}
+@media (max-width:599px){.csr{font-size:0.6875rem}.csr-t td,.csr-t th{padding:2px 3px}.csr-top img{width:110px}.csr-sign{gap:16px}}
