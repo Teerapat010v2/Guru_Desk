@@ -1167,3 +1167,6 @@ textarea,input,select{border-radius:14px}
 /* ปุ่มเล็กในการ์ดงานคงขนาดเดิม แต่พื้นที่แตะขยายเป็น 44px */
 .tcard .tc-f .btn{position:relative}
 .tcard .tc-f .btn::after{content:'';position:absolute;inset:-8px -4px}
+/* ปุ่มหมวดงานสูงเท่ากันทั้งแถว แม้ชื่อบางอันขึ้นสองบรรทัด */
+.catpick label{display:flex}
+.catpick label span{flex:1;min-width:0}
