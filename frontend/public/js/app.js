@@ -548,9 +548,7 @@ function homeLead(u) {
     return `<div class="sec-h"><h2>ยังไม่มอบหมาย${q.length ? ` <span class="cnt hot">${q.length}</span>` : ''}</h2>${q.length ? `<button onclick="goTab('tickets');setFilter('new')">ดูทั้งหมด ›</button>` : ''}</div>`
       + (q.length ? `<div class="card">${q.slice(0, 5).map(x => `<button class="trow" onclick="openTicket('${x.id}')"><div class="tr-m"><b>${esc(x.subject)}</b><small>${esc(custName(x.customer))} · ${esc(siteLabel(x))}</small></div>${ic('right', 16, 2)}</button>`).join('')}</div>` : '<p class="hint" style="margin:0">ไม่มีงานรอมอบหมาย</p>'); })()
   + '</div><div class="hm-side">'
-  + (() => { const pl = tickets.filter(t => t.plan && isOpen(t)).sort((a, b) => (a.plan.date + a.plan.from) < (b.plan.date + b.plan.from) ? -1 : 1);
-    const days = [...new Set(pl.map(t => t.plan.date))];
-    return fold('l-plan', 'ปฏิทินงาน', pl.length ? days.map(d => `<div class="cal-day"><b>${new Date(d + 'T00:00').toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' })}</b>${pl.filter(t => t.plan.date === d).map(t => `<button class="trow" onclick="openTicket('${t.id}')"><div class="tr-m"><b>${t.plan.from}–${t.plan.to} · ${esc(t.subject)}</b><small>${esc(custName(t.customer))} · ${esc(t.assignee ? shortOf(t.assignee) : 'ยังไม่มอบหมาย')}</small></div>${ic('right', 16, 2)}</button>`).join('')}</div>`).join('') : empty('ยังไม่มีนัดหมาย ตั้งวันและเวลาได้ในหน้ารายละเอียดงาน', 'clock'), { count: pl.length, open: true }); })()
+  + (() => { const pl = plannedTickets(u); return fold('l-plan', 'ปฏิทินงาน', calHtml(pl), { count: pl.length, open: true }); })()
   + fold('l-load', 'ภาระงานของช่าง', `<div class="card">${techs.map(x => {
       const mine = tickets.filter(t => t.assignee === x.id && isOpen(t)), n = mine.length;
       return `<div class="load"><div class="lname"><b>${esc(x.name)}</b><small>${n} งานเปิด${mine.some(t => t.priority === 'urgent') ? ' · <em class="prio-urgent">มีงานด่วน</em>' : ''}</small></div>
@@ -1079,8 +1077,27 @@ async function saveProject() {
 
 /* ปฏิทินงาน (ช่าง = นัดของตัวเอง · หัวหน้าทีม = ทั้งหมด): งานที่วางวันไว้และยังไม่เสร็จ แยกเป็นวัน */
 const plannedTickets = u => visibleTickets(u).filter(t => t.plan && isOpen(t)).sort((a, b) => (a.plan.date + a.plan.from) < (b.plan.date + b.plan.from) ? -1 : 1);
-const calHtml = pl => pl.length ? [...new Set(pl.map(t => t.plan.date))].map(d => `<div class="cal-day"><b>${new Date(d + 'T00:00').toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' })}</b>${pl.filter(t => t.plan.date === d).map(t => `<button class="trow" onclick="closeModal();openTicket('${t.id}')"><div class="tr-m"><b>${t.plan.from}–${t.plan.to} · ${esc(t.subject)}</b><small>${isMAJob(t) ? 'MA' : 'แจ้งเหตุ'} · ${esc(custName(t.customer))} · ${esc(siteLabel(t))}${isManager(currentUser) ? ' · ' + esc(t.assignee ? nameOf(t.assignee) : 'ยังไม่มอบหมาย') : ''}</small></div>${ic('right', 16, 2)}</button>`).join('')}</div>`).join('')
-  : empty('ยังไม่มีนัดหมาย — หัวหน้าทีมวางวันและเวลาได้ในหน้ารายละเอียดงาน', 'clock');
+/* ปฏิทินรายเดือน: ตารางเดือน (จุดบอกวันที่มีนัด) + รายการนัดของวันที่เลือกอยู่ใต้ตาราง */
+let calMonth = null, calSel = null;   // calMonth = วันที่ 1 ของเดือนที่แสดง · calSel = 'YYYY-MM-DD'
+const ymd = (y, m, d) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+const calRow = t => `<button class="trow" onclick="closeModal();openTicket('${t.id}')"><div class="tr-m"><b>${t.plan.from}–${t.plan.to} · ${esc(t.subject)}</b><small>${isMAJob(t) ? 'MA' : 'แจ้งเหตุ'} · ${esc(custName(t.customer))} · ${esc(siteLabel(t))}${isManager(currentUser) ? ' · ' + esc(t.assignee ? shortOf(t.assignee) : 'ยังไม่มอบหมาย') : ''}</small></div>${ic('right', 16, 2)}</button>`;
+function calInner(pl) {
+  const now = new Date(), today = ymd(now.getFullYear(), now.getMonth(), now.getDate());
+  const base = calMonth || new Date((pl[0]?.plan.date || today).slice(0, 7) + '-01T00:00');
+  const y = base.getFullYear(), m = base.getMonth(), first = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate();
+  const by = {}; pl.forEach(t => (by[t.plan.date] ||= []).push(t));
+  const inMonth = Object.keys(by).filter(d => d.startsWith(ymd(y, m, 1).slice(0, 7))).sort();
+  const sel = calSel && calSel.startsWith(ymd(y, m, 1).slice(0, 7)) ? calSel : (by[today] ? today : inMonth[0] || null);
+  const cells = [...Array(first).fill('<i></i>'), ...Array.from({ length: days }, (_, i) => { const d = ymd(y, m, i + 1), n = by[d]?.length || 0;
+    return `<button class="cal-c${n ? ' has' : ''}${d === today ? ' today' : ''}${d === sel ? ' sel' : ''}" onclick="calPick('${d}')" aria-label="${i + 1} ${base.toLocaleDateString('th-TH', { month: 'long' })}${n ? ' มีนัด ' + n + ' งาน' : ''}">${i + 1}${n ? `<u>${n}</u>` : ''}</button>`; })];
+  return `<div class="cal-h"><button class="ibtn" onclick="calGo(-1)" aria-label="เดือนก่อน">${ic('back', 18, 2)}</button><b>${base.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })}</b><button class="ibtn" onclick="calGo(1)" aria-label="เดือนถัดไป">${ic('right', 18, 2)}</button></div>
+    <div class="cal-g">${['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'].map(w => `<span>${w}</span>`).join('')}${cells.join('')}</div>
+    ${sel ? `<div class="cal-day"><b>${new Date(sel + 'T00:00').toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' })}</b>${by[sel].map(calRow).join('')}</div>` : `<div class="hint cal-none">เดือนนี้ไม่มีนัดหมาย</div>`}`;
+}
+const calHtml = pl => pl.length ? `<div class="calwrap">${calInner(pl)}</div>` : empty('ยังไม่มีนัดหมาย — หัวหน้าทีมวางวันและเวลาได้ในหน้ารายละเอียดงาน', 'clock');
+const calRefresh = () => document.querySelectorAll('.calwrap').forEach(e => { e.innerHTML = calInner(plannedTickets(currentUser)); });
+function calGo(n) { const pl = plannedTickets(currentUser), now = new Date(), b = calMonth || new Date((pl[0]?.plan.date || ymd(now.getFullYear(), now.getMonth(), 1)).slice(0, 7) + '-01T00:00'); calMonth = new Date(b.getFullYear(), b.getMonth() + n, 1); calSel = null; calRefresh(); }
+function calPick(d) { calSel = d; calRefresh(); }
 function openCalendar() { openModal(`<div class="mh"><h3>ปฏิทินงาน</h3>${xbtn()}</div>${calHtml(plannedTickets(currentUser))}`); }
 /* ---------- หน้า "ฉัน": โปรไฟล์ · โหมดสี · ตั้งค่า ---------- */
 function renderMe() {
@@ -1308,8 +1325,7 @@ async function doTransition(id, to, reason) {
 
 /* ---------- ทำเสร็จ → ออกใบรายงาน (แนบรูปหลังซ่อมเป็นหลักฐานได้) ---------- */
 function suggestHours(tk) {
-  const start = tk.history.find(h => h.to === 'in_progress')?.at || tk.history[0].at;
-  return Math.max(0.5, Math.round((Date.now() - start.getTime()) / 3600000 * 2) / 2);
+  return 1;   // เริ่มที่ 1 ชม. ช่างปรับเอง — เวลาที่งานเปิดค้างอยู่ไม่ใช่เวลาทำงานจริง
 }
 /* เช็กลิสต์งาน MA ตามใบ Customer Service Report: อุปกรณ์ระบบ + เครื่องผู้ใช้ — เฉพาะลูกค้าสัญญา MA */
 const MA_HW = ['Firewall', 'Server', 'Switch', 'NAS', 'UPS', 'CCTV', 'Printers', 'Router ISP', 'Wireless AP'];
