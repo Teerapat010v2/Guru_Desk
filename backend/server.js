@@ -1041,6 +1041,8 @@ http.createServer(async (req, res) => {
     send(res, 404, { error: 'not_found' });
   } catch (err) {
     console.error(err.message);
+    // คอลัมน์/ตารางหาย = ยังไม่ได้รัน migration — บอกให้ชัดแทนข้อความทั่วไป
+    if (err.code === '42703' || err.code === '42P01') return send(res, 503, { error: 'migration_needed' });
     send(res, 500, { error: 'server' });
   }
 }).listen(port, () => console.log(`backend: http://localhost:${port}`));

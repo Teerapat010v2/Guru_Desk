@@ -378,7 +378,7 @@ const EN = {
   '(เดือนสั้นใช้วันสุดท้าย)': '(short months use the last day)', 'สร้างที่ถึงกำหนดตอนนี้': 'Create due jobs now',
   'ยังไม่มีตารางงาน MA — เพิ่มเพื่อให้ระบบสร้างงานให้ทุกเดือน': 'No MA schedules yet — add one so jobs are created every month',
   'บันทึกตารางงาน MA แล้ว': 'MA schedule saved', 'พักตารางงานแล้ว': 'Schedule paused', 'เปิดใช้งานแล้ว': 'Schedule resumed', 'กรุณากรอกชื่องาน': 'Please enter a task name',
-  'วันที่ของเดือนต้องเป็น 1–31': 'Day of month must be 1–31', 'ยังไม่ได้รัน migration ล่าสุด (005/006) ในฐานข้อมูล (ดู TODO.md)': 'Latest database migrations (005/006) have not been run yet (see TODO.md)', 'ชื่อเล่น (แสดงแทนชื่อเต็มในที่แคบ)': 'Nickname (shown instead of the full name where space is tight)',
+  'วันที่ของเดือนต้องเป็น 1–31': 'Day of month must be 1–31', 'ยังไม่ได้รัน migration ล่าสุด (004–006) ในฐานข้อมูล (ดู TODO.md)': 'Latest database migrations (004–006) have not been run yet (see TODO.md)', 'ชื่อเล่น (แสดงแทนชื่อเต็มในที่แคบ)': 'Nickname (shown instead of the full name where space is tight)',
   'ไม่มีงานที่ถึงกำหนดและยังไม่ได้สร้าง': 'No due jobs left to create',
 
   'ส่งคำขอแล้ว — ตัวแทนบริษัทของคุณจะยืนยัน เมื่อยืนยันแล้วเข้าสู่ระบบด้วยอีเมลและรหัสผ่านที่ตั้งไว้': 'Request sent — your company representative will confirm it. Once confirmed, sign in with your email and password.',
