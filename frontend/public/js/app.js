@@ -1221,6 +1221,7 @@ function reportCard(tk) {
   const buttons = [];
   if (canSignOff(u, tk)) buttons.push(`<button class="btn primary" onclick="openSignOff('${tk.id}')">${ic('pen', 16, 2)}${cust ? 'ตรวจสอบและเซ็นรับงาน' : 'ให้ลูกค้าเซ็นบนเครื่องนี้'}</button>`);
   buttons.push(`<button class="btn" onclick="openReport('${tk.id}')">${ic('doc', 16, 2)}ดูใบรายงาน</button>`);
+  if (isStaff(u)) buttons.push(`<button class="btn" onclick="mailtoReport('${tk.id}')">${ic('send', 16, 2)}ส่งอีเมลถึงลูกค้า</button>`);
   if (canRejectWork(u, tk)) buttons.push(`<button class="btn ghost-red" onclick="openReject('${tk.id}')">${ic('undo', 16, 2)}ยังไม่เรียบร้อย</button>`);
   return fold('d-report', `ใบรายงาน <span class="mono muted">${r.no}</span>`, `<div class="card ${s === 'waiting' && cust ? 'attn' : ''}">
     <div class="badges">${signBadge(tk)}</div>
@@ -1745,21 +1746,20 @@ const paperHead = (title, en, right) => `<header class="p-head"><img src="img/lo
 /* ส่งจากอีเมลของตัวเอง: เปิดโปรแกรมอีเมลของช่าง (Outlook ฯลฯ) พร้อมผู้รับ หัวข้อ และเนื้อหา — ลายเซ็นและกล่องจดหมายเป็นของช่างเอง
    ผู้รับกติกาเดียวกับเซิร์ฟเวอร์: งานแจ้งเหตุ → ผู้แจ้ง · งาน MA → หัวหน้าพนักงาน (ไม่มี → อีเมลบริษัท)
    shortcut: mailto แนบไฟล์ไม่ได้ — กด "บันทึกเป็น PDF" แล้วแนบเองก่อนส่ง */
-function mailtoReport(id) {
+function mailDraft(id) {
   const tk = tickets.find(x => x.id === id), r = tk?.report;
-  if (!r) return;
+  if (!r) return null;
   const reporter = users[tk.history[0]?.by]?.email;
   const apprs = Object.values(users).filter(u => u.role === 'customer' && u.customer === tk.customer && u.approver && !u.removed && u.email).map(u => u.email);
   const to = [...new Set(isMAJob(tk) || !reporter ? (apprs.length ? apprs : [customers[tk.customer]?.email].filter(Boolean)) : [reporter])];
-  if (!to.length) { toast('ไม่พบอีเมลผู้รับของงานนี้'); return; }
+  if (!to.length) { toast('ไม่พบอีเมลผู้รับของงานนี้'); return null; }
   const body = [`เรียน ${custName(tk.customer)},`, '', `งาน "${tk.subject}" (${tk.id}) ดำเนินการเสร็จเรียบร้อยแล้ว`, '', `สรุปงาน: ${r.summary}`, r.parts ? `อุปกรณ์/อะไหล่: ${r.parts}` : '', `เวลาที่ใช้: ${hrs(r.hours)}`, `เลขที่ใบรายงาน: ${r.no}`, '', 'แนบใบรายงานมาพร้อมอีเมลนี้', ''].filter((l, i, a) => l || a[i - 1]).join('\n');
-  location.href = `mailto:${to.join(',')}?subject=${encodeURIComponent(`ใบรายงาน ${r.no} — ${tk.subject}`)}&body=${encodeURIComponent(body)}`;
+  return { to: to.join(','), subject: `ใบรายงาน ${r.no} — ${tk.subject}`, body };
 }
-async function emailReport(id) {
-  try { const d = await api(`/tickets/${id}/emailreport`, {});
-    toast(d.sent ? `ส่งอีเมลแล้ว ${d.sent} ที่อยู่` : 'ยังไม่ได้ตั้งค่าอีเมลของระบบ (SMTP) จึงยังส่งไม่ได้'); }
-  catch (e) { toast(e.message); }
-}
+const mailQuery = d => `to=${encodeURIComponent(d.to)}&subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`;
+function mailtoReport(id) { const d = mailDraft(id); if (d) location.href = `mailto:${d.to}?${mailQuery(d).replace(/^to=[^&]*&/, '')}`; }
+function outlookWebReport(id) { const d = mailDraft(id); if (d) window.open(`https://outlook.office.com/mail/deeplink/compose?${mailQuery(d)}`, '_blank', 'noopener'); }
+const reportMailBtns = id => isStaff(currentUser) ? `<button class="btn sm" onclick="mailtoReport('${id}')">${ic('send', 15, 2)}เปิดในอีเมลของฉัน</button><button class="btn sm" onclick="outlookWebReport('${id}')">Outlook เว็บ</button>` : '';
 /* ใบรายงานงาน MA: รูปแบบ Customer Service Report ของบริษัท จบใน A4 หน้าเดียว (รูปประกอบถ้ามีไปต่อหน้าสอง) */
 const box = ok => (ok ? '&#9745;' : '&#9744;');
 function csrDoc(tk) {
@@ -1791,7 +1791,7 @@ function openReport(id) {
   if (!tk || !canSeeReport(currentUser, tk)) return;
   const r = tk.report, s = siteOf(tk), so = r.signoff, st = signState(tk);
   const started = tk.history.filter(h => h.to === 'in_progress').at(-1)?.at;
-  if (r.checklist) return openDoc(`ใบรายงาน ${r.no}`, csrDoc(tk), isStaff(currentUser) ? `<button class="btn sm" onclick="mailtoReport('${id}')">${ic('send', 15, 2)}เปิดในอีเมลของฉัน</button>${isManager(currentUser) ? `<button class="btn sm" onclick="emailReport('${id}')">ส่งจากระบบ</button>` : ''}` : '');
+  if (r.checklist) return openDoc(`ใบรายงาน ${r.no}`, csrDoc(tk), reportMailBtns(id));
   const html = paperHead('ใบรายงานการปฏิบัติงาน', 'Service Report', `<div class="p-no">เลขที่ <b>${r.no}</b></div><div class="p-no">วันที่ ${fmtD(r.at)}</div>`)
   + `<table class="p-grid">
       <tr><th>ลูกค้า</th><td colspan="3"><b>${esc(custName(tk.customer))}</b></td></tr>
@@ -1816,7 +1816,7 @@ function openReport(id) {
     </div>
     ${st === 'nosign' ? `<div class="p-note">หมายเหตุ: ปิดงานโดยไม่มีลายเซ็นลูกค้า — ${esc(r.closedNoSign || '-')}</div>` : ''}
     <footer class="p-foot">เอกสารนี้สร้างจากระบบ Guru IT Service Desk · สถานะ: ${SIGN_LABEL[st]} · พิมพ์เมื่อ ${fmtS(new Date())}</footer>`;
-  openDoc(`ใบรายงาน ${r.no}`, html, isStaff(currentUser) ? `<button class="btn sm" onclick="mailtoReport('${id}')">${ic('send', 15, 2)}เปิดในอีเมลของฉัน</button>${isManager(currentUser) ? `<button class="btn sm" onclick="emailReport('${id}')">ส่งจากระบบ</button>` : ''}` : '');
+  openDoc(`ใบรายงาน ${r.no}`, html, reportMailBtns(id));
 }
 
 /* ---------- รายงานสรุป (หัวหน้าทีม / ผู้ดูแล) ---------- */
