@@ -1801,11 +1801,37 @@ async function sendConfirmMail(id, web = false) {
       saveBlob(new Blob([pdf], { type: 'application/pdf' }), name); mailtoReport(id); toast('แนบไฟล์ PDF ที่ดาวน์โหลดในอีเมล'); return;
     }
     if (web) { saveBlob(new Blob([pdf], { type: 'application/pdf' }), name); outlookWebReport(id); toast('ลากไฟล์ PDF ที่ดาวน์โหลดแนบในอีเมล'); return; }
+    if (/Windows/.test(navigator.userAgent)) {
+      const file = `${tk.report.no}-${Date.now().toString(36)}.pdf`;
+      saveBlob(new Blob([pdf], { type: 'application/pdf' }), file);
+      let opened = false; const seen = () => { opened = true; };
+      window.addEventListener('blur', seen, { once: true }); document.addEventListener('visibilitychange', seen, { once: true });
+      const text = d.body.replace('แนบใบรายงานมาพร้อมอีเมลนี้', 'ใบรายงานแนบมาพร้อมอีเมลนี้ (ไฟล์ PDF)');
+      location.href = `guru-outlook://compose?to=${encodeURIComponent(d.to)}&subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(text)}&file=${file}`;
+      // เครื่องที่ยังไม่ได้ติดตั้งตัวช่วย: ลิงก์ไม่ทำอะไร (หน้าไม่เสียโฟกัส) → แสดงวิธีติดตั้ง
+      setTimeout(() => { if (!opened) helperModal(id); }, 2500);
+      return;
+    }
     saveBlob(new Blob([buildEml(d, name, pdf)], { type: 'message/rfc822' }), `${tk.report.no}.eml`);
     openModal(`<div class="mh"><h3>ส่งอีเมลยืนยัน</h3>${xbtn()}</div>
       <p class="hint">ดาวน์โหลดร่างอีเมลแล้ว: ${esc(tk.report.no)}.eml<br>เปิดไฟล์นี้จากรายการดาวน์โหลดของเบราว์เซอร์ (ดับเบิลคลิก) Outlook จะเปิดร่างที่กรอกผู้รับและแนบ PDF ให้แล้ว กดส่งได้เลย</p>
       <div class="row end"><button class="btn" onclick="useOutlookWeb('${id}')">เปิดไม่ได้ ใช้ Outlook เว็บ</button><button class="btn primary" onclick="closeModal()">เรียบร้อย</button></div>`);
   } catch (e) { toast(e.message); }
+}
+/* ตัวช่วยเปิด Outlook: ติดตั้งครั้งเดียวต่อเครื่อง (ไม่ต้องเป็นผู้ดูแลระบบ) — ไฟล์ติดตั้งประกอบจาก /outlook-helper/outlook.ps1 + install.template.cmd */
+function helperModal(id) {
+  openModal(`<div class="mh"><h3>เปิด Outlook ไม่ได้</h3>${xbtn()}</div>
+    <p class="hint">ถ้า Outlook ยังไม่เปิดร่างอีเมล แสดงว่าเครื่องนี้ยังไม่ได้ติดตั้ง <b>ตัวช่วย Outlook</b> (ใช้กับ Outlook แบบ Desktop) ติดตั้งครั้งเดียว: กดปุ่มด้านล่าง เปิดไฟล์ที่ดาวน์โหลด แล้วกด "ส่งอีเมลยืนยัน" อีกครั้ง — เบราว์เซอร์อาจถามให้ยืนยัน ให้เลือกอนุญาตและติ๊ก "จำไว้"</p>
+    <div class="row end"><button class="btn" onclick="useOutlookWeb('${id}')">ใช้ Outlook เว็บ</button><button class="btn primary" onclick="installHelper()">ติดตั้งตัวช่วย Outlook</button></div>`);
+}
+async function installHelper() {
+  try {
+    const get = u => fetch(u, { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error(u); return r; });
+    const enc = b64(new Uint8Array(await (await get('outlook-helper/outlook.ps1')).arrayBuffer())), tpl = (await (await get('outlook-helper/install.template.cmd')).text()).replace(/\r?\n/g, '\r\n');
+    const chunks = enc.match(/.{1,3000}/g).map(c => `set "B=%B%${c}"`).join('\r\n');
+    saveBlob(new Blob([tpl.replace('__CHUNKS__', chunks)], { type: 'application/octet-stream' }), 'install-guru-outlook.cmd');
+    toast('ดาวน์โหลดตัวติดตั้งแล้ว — เปิดไฟล์ install-guru-outlook.cmd หนึ่งครั้ง');
+  } catch { toast('ดาวน์โหลดตัวติดตั้งไม่สำเร็จ ลองใหม่อีกครั้ง'); }
 }
 function useOutlookWeb(id) { closeModal(); sendConfirmMail(id, true); }
 function mailDraft(id) {
