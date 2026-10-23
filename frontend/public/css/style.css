@@ -1160,3 +1160,10 @@ textarea,input,select{border-radius:14px}
 .ph-t small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ph-a{flex:none;margin-left:0}
 @media (max-width:359px){.ph-a .ftool,.ph-a .ibtn{width:34px}}
+
+/* ช่องติ๊กที่ซ่อน (หมวดงาน/ความเร่งด่วน/ถนัดงาน) ต้องอยู่ในป้ายของตัวเอง ไม่งั้นกว้างเท่าหน้าต่างจนหน้าต่างเลื่อนซ้าย-ขวา */
+.catpick label,.urg label{position:relative}
+.catpick input,.urg input{width:1px;height:1px;left:0;top:0}
+/* ปุ่มเล็กในการ์ดงานคงขนาดเดิม แต่พื้นที่แตะขยายเป็น 44px */
+.tcard .tc-f .btn{position:relative}
+.tcard .tc-f .btn::after{content:'';position:absolute;inset:-8px -4px}
