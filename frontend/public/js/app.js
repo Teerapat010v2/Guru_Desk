@@ -1776,10 +1776,9 @@ async function reportPdf(tk) {
 const b64 = u8 => { let b = ''; for (let i = 0; i < u8.length; i += 0x8000) b += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(b); };
 const wrap76 = t => t.replace(/.{76}/g, '$&\r\n');
 /* ปุ่มเดียว "ส่งอีเมลยืนยัน" แนบ PDF เสมอ — ระบบเลือกทางเอง:
-   มือถือ → เมนูแชร์ของเครื่อง (เลือก Outlook/Gmail ได้ พร้อมไฟล์ PDF) · คอม → ไฟล์ร่าง .eml เปิดในแอป Outlook · ถ้าเปิดแอปไม่ได้ กด "ใช้ Outlook เว็บ" (จำไว้ที่เครื่องนั้น)
+   มือถือ → เมนูแชร์ของเครื่อง (เลือก Outlook/Gmail ได้ พร้อมไฟล์ PDF) · คอม → ไฟล์ร่าง .eml เปิดในแอป Outlook เสมอ · ถ้าเปิดแอปไม่ได้ ผู้ใช้กด "ใช้ Outlook เว็บ" เป็นครั้งๆ ไป (ไม่จำ — ครั้งหน้าลองแอปก่อนเสมอ)
    shortcut: ตรวจไม่ได้ว่าแอปเปิดสำเร็จหรือไม่ จึงให้ผู้ใช้บอกเอง — Outlook เว็บแนบไฟล์ให้อัตโนมัติไม่ได้ (ดาวน์โหลด PDF ให้แล้วช่างลากแนบ) */
 const isPhone = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-const mailMode = () => { try { return localStorage.getItem('mailMode'); } catch { return null; } };
 const saveBlob = (blob, name) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); };
 function buildEml(d, name, pdf) {
   const bd = `=_guru_${Date.now().toString(36)}`, utf8 = t => b64(new TextEncoder().encode(t));
@@ -1787,13 +1786,13 @@ function buildEml(d, name, pdf) {
     `--${bd}`, 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', wrap76(utf8(d.body.replace('แนบใบรายงานมาพร้อมอีเมลนี้', 'ใบรายงานแนบมาพร้อมอีเมลนี้ (ไฟล์ PDF)'))),
     `--${bd}`, `Content-Type: application/pdf; name="${name}"`, 'Content-Transfer-Encoding: base64', `Content-Disposition: attachment; filename="${name}"`, '', wrap76(b64(new Uint8Array(pdf))), `--${bd}--`, ''].join('\r\n');
 }
-async function sendConfirmMail(id) {
+async function sendConfirmMail(id, web = false) {
   const tk = tickets.find(x => x.id === id), d = mailDraft(id);
   if (!d) return;
   toast('กำลังเตรียมอีเมลและ PDF…');
   try {
     const pdf = await reportPdf(tk), name = `${tk.report.no}.pdf`;
-    if (isPhone()) {
+    if (isPhone() && !web) {
       const file = new File([pdf], name, { type: 'application/pdf' });
       if (navigator.canShare?.({ files: [file] })) {
         try { await navigator.share({ files: [file], title: d.subject, text: `${d.body}\n\nถึง: ${d.to}` }); } catch (e) { if (e.name !== 'AbortError') throw e; }
@@ -1801,14 +1800,14 @@ async function sendConfirmMail(id) {
       }
       saveBlob(new Blob([pdf], { type: 'application/pdf' }), name); mailtoReport(id); toast('แนบไฟล์ PDF ที่ดาวน์โหลดในอีเมล'); return;
     }
-    if (mailMode() === 'web') { saveBlob(new Blob([pdf], { type: 'application/pdf' }), name); outlookWebReport(id); toast('ลากไฟล์ PDF ที่ดาวน์โหลดแนบในอีเมล'); return; }
+    if (web) { saveBlob(new Blob([pdf], { type: 'application/pdf' }), name); outlookWebReport(id); toast('ลากไฟล์ PDF ที่ดาวน์โหลดแนบในอีเมล'); return; }
     saveBlob(new Blob([buildEml(d, name, pdf)], { type: 'message/rfc822' }), `${tk.report.no}.eml`);
     openModal(`<div class="mh"><h3>ส่งอีเมลยืนยัน</h3>${xbtn()}</div>
-      <p class="hint">ดาวน์โหลดร่างอีเมลแล้ว (${esc(tk.report.no)}.eml) — เปิดไฟล์นี้ Outlook จะเปิดร่างที่กรอกผู้รับและแนบ PDF ให้แล้ว กดส่งได้เลย</p>
+      <p class="hint">ดาวน์โหลดร่างอีเมลแล้ว: ${esc(tk.report.no)}.eml<br>เปิดไฟล์นี้จากรายการดาวน์โหลดของเบราว์เซอร์ (ดับเบิลคลิก) Outlook จะเปิดร่างที่กรอกผู้รับและแนบ PDF ให้แล้ว กดส่งได้เลย</p>
       <div class="row end"><button class="btn" onclick="useOutlookWeb('${id}')">เปิดไม่ได้ ใช้ Outlook เว็บ</button><button class="btn primary" onclick="closeModal()">เรียบร้อย</button></div>`);
   } catch (e) { toast(e.message); }
 }
-function useOutlookWeb(id) { try { localStorage.setItem('mailMode', 'web'); } catch { /* จำไม่ได้ก็ใช้รอบนี้รอบเดียว */ } closeModal(); sendConfirmMail(id); }
+function useOutlookWeb(id) { closeModal(); sendConfirmMail(id, true); }
 function mailDraft(id) {
   const tk = tickets.find(x => x.id === id), r = tk?.report;
   if (!r) return null;
