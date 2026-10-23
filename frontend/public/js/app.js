@@ -1221,7 +1221,7 @@ function reportCard(tk) {
   const buttons = [];
   if (canSignOff(u, tk)) buttons.push(`<button class="btn primary" onclick="openSignOff('${tk.id}')">${ic('pen', 16, 2)}${cust ? 'ตรวจสอบและเซ็นรับงาน' : 'ให้ลูกค้าเซ็นบนเครื่องนี้'}</button>`);
   buttons.push(`<button class="btn" onclick="openReport('${tk.id}')">${ic('doc', 16, 2)}ดูใบรายงาน</button>`);
-  if (isStaff(u)) buttons.push(`<button class="btn" onclick="mailtoReport('${tk.id}')">${ic('send', 16, 2)}ส่งอีเมลถึงลูกค้า</button>`);
+  if (isStaff(u)) buttons.push(`<button class="btn" onclick="emailWithPdf('${tk.id}')">${ic('send', 16, 2)}ส่งอีเมลพร้อม PDF</button>`);
   if (canRejectWork(u, tk)) buttons.push(`<button class="btn ghost-red" onclick="openReject('${tk.id}')">${ic('undo', 16, 2)}ยังไม่เรียบร้อย</button>`);
   return fold('d-report', `ใบรายงาน <span class="mono muted">${r.no}</span>`, `<div class="card ${s === 'waiting' && cust ? 'attn' : ''}">
     <div class="badges">${signBadge(tk)}</div>
@@ -1746,6 +1746,48 @@ const paperHead = (title, en, right) => `<header class="p-head"><img src="img/lo
 /* ส่งจากอีเมลของตัวเอง: เปิดโปรแกรมอีเมลของช่าง (Outlook ฯลฯ) พร้อมผู้รับ หัวข้อ และเนื้อหา — ลายเซ็นและกล่องจดหมายเป็นของช่างเอง
    ผู้รับกติกาเดียวกับเซิร์ฟเวอร์: งานแจ้งเหตุ → ผู้แจ้ง · งาน MA → หัวหน้าพนักงาน (ไม่มี → อีเมลบริษัท)
    shortcut: mailto แนบไฟล์ไม่ได้ — กด "บันทึกเป็น PDF" แล้วแนบเองก่อนส่ง */
+/* PDF + ร่างอีเมลแนบไฟล์: วาดใบรายงานเป็นภาพ A4 (html2canvas) → PDF (jsPDF) → ห่อเป็น .eml ที่มีหัว X-Unsent: 1
+   ดับเบิลคลิกไฟล์ .eml แล้ว Outlook บนเครื่องเปิดเป็นร่างพร้อมผู้รับ หัวข้อ เนื้อหา และ PDF — ช่างกดส่งเอง
+   shortcut: PDF เป็นภาพ (เลือกคัดลอกข้อความไม่ได้) และโหลดไลบรารีจาก cdnjs ตอนกดครั้งแรก (ต้องมีอินเทอร์เน็ต) — ย้ายไปสร้างฝั่งเซิร์ฟเวอร์เมื่อต้องการข้อความในไฟล์ */
+const loadScript = src => new Promise((ok, no) => { const e = document.createElement('script'); e.src = src; e.onload = ok; e.onerror = () => no(new Error('โหลดตัวสร้าง PDF ไม่ได้ (ต้องต่ออินเทอร์เน็ต)')); document.head.appendChild(e); });
+async function reportPdf(tk) {
+  if (!window.html2canvas) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+  if (!window.jspdf) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  const stage = document.createElement('div');
+  stage.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;background:#fff';
+  stage.innerHTML = `<article class="paper" style="box-shadow:none;margin:0;max-width:none;padding:28px 32px">${reportHtml(tk)}</article>`;
+  document.body.appendChild(stage);
+  try {
+    await document.fonts.ready;
+    // รูปประกอบ (หน้าถัดไปในใบรายงาน MA) ต้องขึ้นต้นที่หน้าใหม่ ไม่ใช่ต่อท้ายหน้าแรกแล้วถูกตัดกลางรูป
+    const pageCss = 277 * 794 / 190, nb = stage.querySelector('.p-newpage');
+    if (nb) nb.style.marginTop = `${(pageCss - (nb.offsetTop % pageCss)) % pageCss}px`;
+    const cv = await html2canvas(stage, { scale: 2, backgroundColor: '#fff', useCORS: true });
+    const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' }), W = 190, H = 277, pxMm = cv.width / W, slice = Math.floor(H * pxMm);
+    for (let y = 0, p = 0; y < cv.height; y += slice, p++) {
+      const part = document.createElement('canvas'); part.width = cv.width; part.height = Math.min(slice, cv.height - y);
+      part.getContext('2d').drawImage(cv, 0, y, cv.width, part.height, 0, 0, cv.width, part.height);
+      if (p) pdf.addPage();
+      pdf.addImage(part.toDataURL('image/jpeg', 0.92), 'JPEG', 10, 10, W, part.height / pxMm);
+    }
+    return pdf.output('arraybuffer');
+  } finally { stage.remove(); }
+}
+const b64 = u8 => { let b = ''; for (let i = 0; i < u8.length; i += 0x8000) b += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(b); };
+const wrap76 = t => t.replace(/.{76}/g, '$&\r\n');
+async function emailWithPdf(id) {
+  const tk = tickets.find(x => x.id === id), d = mailDraft(id);
+  if (!d) return;
+  toast('กำลังสร้าง PDF…');
+  try {
+    const name = `${tk.report.no}.pdf`, bd = `=_guru_${Date.now().toString(36)}`;
+    const eml = ['X-Unsent: 1', `To: ${d.to}`, `Subject: =?UTF-8?B?${b64(new TextEncoder().encode(d.subject))}?=`, 'MIME-Version: 1.0', `Content-Type: multipart/mixed; boundary="${bd}"`, '',
+      `--${bd}`, 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', wrap76(b64(new TextEncoder().encode(d.body.replace('แนบใบรายงานมาพร้อมอีเมลนี้', 'ใบรายงานแนบมาพร้อมอีเมลนี้ (ไฟล์ PDF)')))),
+      `--${bd}`, `Content-Type: application/pdf; name="${name}"`, 'Content-Transfer-Encoding: base64', `Content-Disposition: attachment; filename="${name}"`, '', wrap76(b64(new Uint8Array(await reportPdf(tk)))), `--${bd}--`, ''].join('\r\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([eml], { type: 'message/rfc822' })); a.download = `${tk.report.no}.eml`; document.body.appendChild(a); a.click(); a.remove();
+    toast('ดาวน์โหลดร่างอีเมลแล้ว — เปิดไฟล์ .eml เพื่อส่งจากอีเมลของคุณ');
+  } catch (e) { toast(e.message); }
+}
 function mailDraft(id) {
   const tk = tickets.find(x => x.id === id), r = tk?.report;
   if (!r) return null;
@@ -1759,7 +1801,7 @@ function mailDraft(id) {
 const mailQuery = d => `to=${encodeURIComponent(d.to)}&subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`;
 function mailtoReport(id) { const d = mailDraft(id); if (d) location.href = `mailto:${d.to}?${mailQuery(d).replace(/^to=[^&]*&/, '')}`; }
 function outlookWebReport(id) { const d = mailDraft(id); if (d) window.open(`https://outlook.office.com/mail/deeplink/compose?${mailQuery(d)}`, '_blank', 'noopener'); }
-const reportMailBtns = id => isStaff(currentUser) ? `<button class="btn sm" onclick="mailtoReport('${id}')">${ic('send', 15, 2)}เปิดในอีเมลของฉัน</button><button class="btn sm" onclick="outlookWebReport('${id}')">Outlook เว็บ</button>` : '';
+const reportMailBtns = id => isStaff(currentUser) ? `<button class="btn sm primary" onclick="emailWithPdf('${id}')">${ic('send', 15, 2)}อีเมล + PDF</button><button class="btn sm" onclick="mailtoReport('${id}')">แอปอีเมล</button><button class="btn sm" onclick="outlookWebReport('${id}')">Outlook เว็บ</button>` : '';
 /* ใบรายงานงาน MA: รูปแบบ Customer Service Report ของบริษัท จบใน A4 หน้าเดียว (รูปประกอบถ้ามีไปต่อหน้าสอง) */
 const box = ok => (ok ? '&#9745;' : '&#9744;');
 function csrDoc(tk) {
@@ -1786,13 +1828,11 @@ function csrDoc(tk) {
     ${r.photos?.length ? `<div class="p-newpage"><h2>Photos</h2><div class="p-photos">${r.photos.filter(p => PHOTOS[p]).map(p => `<img src="${PHOTOS[p]}" alt="">`).join('')}</div></div>` : ''}
   </div>`;
 }
-function openReport(id) {
-  const tk = tickets.find(x => x.id === id);
-  if (!tk || !canSeeReport(currentUser, tk)) return;
+function reportHtml(tk) {
   const r = tk.report, s = siteOf(tk), so = r.signoff, st = signState(tk);
   const started = tk.history.filter(h => h.to === 'in_progress').at(-1)?.at;
-  if (r.checklist) return openDoc(`ใบรายงาน ${r.no}`, csrDoc(tk), reportMailBtns(id));
-  const html = paperHead('ใบรายงานการปฏิบัติงาน', 'Service Report', `<div class="p-no">เลขที่ <b>${r.no}</b></div><div class="p-no">วันที่ ${fmtD(r.at)}</div>`)
+  if (r.checklist) return csrDoc(tk);
+  return paperHead('ใบรายงานการปฏิบัติงาน', 'Service Report', `<div class="p-no">เลขที่ <b>${r.no}</b></div><div class="p-no">วันที่ ${fmtD(r.at)}</div>`)
   + `<table class="p-grid">
       <tr><th>ลูกค้า</th><td colspan="3"><b>${esc(custName(tk.customer))}</b></td></tr>
       <tr><th>สถานที่</th><td colspan="3">${esc(s?.name || '-')}${tk.location ? ` · ${esc(tk.location)}` : ''}<br><small>${esc(s?.address || '')}</small></td></tr>
@@ -1816,7 +1856,11 @@ function openReport(id) {
     </div>
     ${st === 'nosign' ? `<div class="p-note">หมายเหตุ: ปิดงานโดยไม่มีลายเซ็นลูกค้า — ${esc(r.closedNoSign || '-')}</div>` : ''}
     <footer class="p-foot">เอกสารนี้สร้างจากระบบ Guru IT Service Desk · สถานะ: ${SIGN_LABEL[st]} · พิมพ์เมื่อ ${fmtS(new Date())}</footer>`;
-  openDoc(`ใบรายงาน ${r.no}`, html, reportMailBtns(id));
+}
+function openReport(id) {
+  const tk = tickets.find(x => x.id === id);
+  if (!tk || !canSeeReport(currentUser, tk)) return;
+  openDoc(`ใบรายงาน ${tk.report.no}`, reportHtml(tk), reportMailBtns(id));
 }
 
 /* ---------- รายงานสรุป (หัวหน้าทีม / ผู้ดูแล) ---------- */
